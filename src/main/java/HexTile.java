@@ -1,70 +1,84 @@
-import javax.swing.*;
-import java.awt.*;
+import javafx.scene.image.Image;
+import javafx.scene.paint.ImagePattern;
+import javafx.scene.shape.Polygon;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.text.Text;
+import javafx.scene.text.Font;
+import javafx.scene.Group;
 
-public class HexTile {
-    private final ResourceType resource; // עץ, חמר, חיטה, וכו'
-    private int numberToken; // המספר (2-12)
-    private final int q, r;
+public class HexTile extends Group{
+    private final ResourceType resource;
     private final Image image;
+    private final Polygon hexagon;
+    private final int diceNumber;
+    private Circle numberCircle;
+    private Text numberText;
 
-    private Vertex[] vertices = new Vertex[6];
-    private Edge[] edges = new Edge[6];
-
-    public HexTile( ResourceType resource, int q, int r) {
+    public HexTile(ResourceType resource, double size, int diceNumber) {
         this.resource = resource;
-        this.q = q;
-        this.r = r;
+        this.diceNumber = diceNumber;
         this.image = loadImage(resource);
+        this.hexagon = new Polygon();
+
+        createHexagon(size);
+        if (diceNumber > 0 && resource != ResourceType.DESERT) {
+            createNumberToken(size);
+        }
     }
 
     // getters/setters
-    public int getNumberToken() {
-        return numberToken;
-    }
-    public int getQ() {
-        return q;
-    }
-    public int getR() {
-        return r;
-    }
     public ResourceType getResource() {
         return resource;
     }
     public Image getImage() {
         return image;
     }
-    public Vertex getVertex(int index) {
-        return vertices[index];
+    public int getDiceNumber() {
+        return diceNumber;
     }
-    public Edge getEdge(int index) {
-        return edges[index];
-    }
-
-    public void setNumberToken(int newNumberToken) {
-        this.numberToken = newNumberToken;
-    }
-    public void setVertex(int index, Vertex v) {
-        vertices[index] = v;
-    }
-    public void setEdge(int index, Edge e) {
-        edges[index] = e;
-    }
-
     // methods
-    private Image loadImage (ResourceType type) {
+    private Image loadImage(ResourceType type) {
         String path = "/Tiles/" + type.name().toLowerCase() + ".png";
         try {
-            return new ImageIcon(getClass().getResource(path)).getImage();
+            return new Image(getClass().getResourceAsStream(path));
         } catch (Exception e) {
-            System.err.println("Failed to load image: " + path);
+            System.err.println("Could not load " + path);
             return null;
         }
     }
-    public void draw(Graphics2D g, int centerX, int centerY, int size) {
-        int width = size * 2;
-        int height = (int) (Math.sqrt(3) * size);
-        int drawX = centerX - width / 2;
-        int drawY = centerY - height / 2;
-        g.drawImage(image, drawX, drawY, width, height, null);
+
+    private void createHexagon(double size) {
+        for (int i = 0; i < 6; i++) {
+            double angle = Math.toRadians(60 * i);
+            double x = size * Math.cos(angle);
+            double y = size * Math.sin(angle);
+            hexagon.getPoints().addAll(x, y);
+        }
+
+        hexagon.setFill(new ImagePattern(image));
+
+        hexagon.setStroke(Color.BLACK);
+        hexagon.setStrokeWidth(2);
+        getChildren().add(hexagon);
+    }
+
+    private void createNumberToken(double size) {
+        // יצירת עיגול למספר הקובייה
+        numberCircle = new Circle(size * 0.3);
+        numberCircle.setFill(Color.BEIGE);
+        numberCircle.setStroke(Color.BLACK);
+        numberCircle.setStrokeWidth(2);
+
+        // טקסט המספר
+        numberText = new Text(String.valueOf(diceNumber));
+        numberText.setFont(Font.font("Arial", size * 0.4));
+        numberText.setFill(diceNumber == 6 || diceNumber == 8 ? Color.RED : Color.BLACK);
+
+        // מרכוז הטקסט
+        numberText.setX(-numberText.getBoundsInLocal().getWidth() / 2);
+        numberText.setY(numberText.getBoundsInLocal().getHeight() / 4);
+
+        getChildren().addAll(numberCircle, numberText);
     }
 }
