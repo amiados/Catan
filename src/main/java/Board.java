@@ -1,187 +1,202 @@
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
-import javafx.stage.Stage;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
-import javafx.scene.text.Text;
+import javafx.scene.shape.Polygon;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.stage.Stage;
 
-public class Board extends Application { private static final double SIZE = 50;
-    private static final double HEX_WIDTH = SIZE * Math.sqrt(3);
-    private static final double HEX_HEIGHT = SIZE * 2;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-    // פריסת הלוח הנכונה של קטאן
-    private static final int[][] BOARD_LAYOUT = {
-            {-1, -1, -1,  0,  0,  0, -1, -1, -1},
-            {-1, -1,  0,  1,  1,  1,  0, -1, -1},
-            {-1,  0,  1,  1,  1,  1,  1,  0, -1},
-            { 0,  1,  1,  1,  1,  1,  1,  0, -1},
-            {-1,  0,  1,  1,  1,  1,  1,  0, -1},
-            {-1, -1,  0,  1,  1,  1,  0, -1, -1},
-            {-1, -1, -1,  0,  0,  0, -1, -1, -1}
-    };
+public class Board extends Application {
+    private static final double HEX_SIZE = 70;
+    private static final double BOARD_WIDTH = 900;
+    private static final double BOARD_HEIGHT = 700;
 
-    // משאבים כפי שהם מופיעים בלוח הרגיל
-    private static final ResourceType[] LAND_RESOURCES = {
-            // שורה 1 (3 אריחים)
-            ResourceType.ORE, ResourceType.SHEEP, ResourceType.WOOD,
-            // שורה 2 (4 אריחים)
-            ResourceType.WHEAT, ResourceType.BRICK, ResourceType.SHEEP, ResourceType.BRICK,
-            // שורה 3 (5 אריחים)
-            ResourceType.WHEAT, ResourceType.WOOD, ResourceType.DESERT, ResourceType.WOOD, ResourceType.ORE,
-            // שורה 4 (4 אריחים)
-            ResourceType.BRICK, ResourceType.ORE, ResourceType.WHEAT, ResourceType.SHEEP,
-            // שורה 5 (3 אריחים)
-            ResourceType.WOOD, ResourceType.SHEEP, ResourceType.WHEAT
-    };
+    private Pane root;
+    private List<HexTile> tiles;
 
-    // מספרי קוביות (ללא המדבר)
-    private static final int[] DICE_NUMBERS = {
-            10, 2, 9,
-            12, 6, 4, 10,
-            9, 11, 3, 8,
-            8, 3, 4, 5,
-            5, 6, 11
-    };
-
-    // מיקומי נמלים
-    private static final String[] PORTS = {"3:1", "WOOD", "3:1", "BRICK", "3:1", "SHEEP", "3:1", "ORE", "3:1"};
+    // רשימת המספרים
+    private final List<Integer> numbers = List.of(2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12);
 
     @Override
     public void start(Stage stage) {
-        Pane root = new Pane();
-        root.setStyle("-fx-background-color: #87CEEB;"); // צבע רקע כחול בהיר
+        root = new Pane();
+        root.setPrefSize(BOARD_WIDTH, BOARD_HEIGHT);
+        root.setStyle("-fx-background-color: #4682B4;"); // רקע כחול כמו הים
 
-        // מרכז הלוח
-        double centerX = 500;
-        double centerY = 400;
+        initializeTiles();
+        createBoard();
 
-        int landIndex = 0;
-        int diceIndex = 0;
-
-        // יצירת הלוח
-        for (int row = 0; row < BOARD_LAYOUT.length; row++) {
-            for (int col = 0; col < BOARD_LAYOUT[row].length; col++) {
-                int tileType = BOARD_LAYOUT[row][col];
-                if (tileType == -1) continue;
-
-                // חישוב מיקום
-                double x = centerX + (col - 4) * HEX_WIDTH * 0.75;
-                double y = centerY + (row - 3) * HEX_HEIGHT * 0.75;
-
-                // התאמה לשורות זוגיות
-                if (col % 2 == 1) {
-                    y += HEX_HEIGHT * 0.375;
-                }
-
-                if (tileType == 0) { // מים
-                    HexTile waterTile = new HexTile(ResourceType.WATER, SIZE, 0);
-                    waterTile.setLayoutX(x);
-                    waterTile.setLayoutY(y);
-                    root.getChildren().add(waterTile);
-                } else if (tileType == 1) { // יבשה
-                    ResourceType resource = LAND_RESOURCES[landIndex];
-                    int diceNumber = 0;
-
-                    if (resource != ResourceType.DESERT) {
-                        diceNumber = DICE_NUMBERS[diceIndex++];
-                    }
-
-                    HexTile landTile = new HexTile(resource, SIZE, diceNumber);
-                    landTile.setLayoutX(x);
-                    landTile.setLayoutY(y);
-
-                    // אפקט hover
-                    landTile.setOnMouseEntered(e -> {
-                        landTile.setScaleX(1.1);
-                        landTile.setScaleY(1.1);
-                    });
-                    landTile.setOnMouseExited(e -> {
-                        landTile.setScaleX(1.0);
-                        landTile.setScaleY(1.0);
-                    });
-
-                    root.getChildren().add(landTile);
-                    landIndex++;
-                }
-            }
-        }
-
-        // הוספת נמלים במיקומים המתאימים
-        addPorts(root, centerX, centerY);
-
-        // כותרת
-        Text title = new Text(20, 40, "Settlers of Catan - קטאן");
-        title.setFont(Font.font("Arial", 28));
-        title.setFill(Color.DARKBLUE);
-        root.getChildren().add(title);
-
-        // מקרא
-        addLegend(root);
-
-        Scene scene = new Scene(root, 1000, 800);
+        Scene scene = new Scene(root, BOARD_WIDTH, BOARD_HEIGHT);
+        stage.setTitle("Catan Board");
         stage.setScene(scene);
-        stage.setTitle("Catan Board - לוח קטאן");
         stage.show();
     }
 
-    private void addPorts(Pane root, double centerX, double centerY) {
-        // מיקומי נמלים סביב הלוח
-        double[][] portPositions = {
-                {centerX - 150, centerY - 200, 0},      // למעלה שמאל
-                {centerX, centerY - 220, 0},            // למעלה
-                {centerX + 150, centerY - 200, 60},     // למעלה ימין
-                {centerX + 200, centerY, 120},          // ימין
-                {centerX + 150, centerY + 200, 180},    // למטה ימין
-                {centerX, centerY + 220, 180},          // למטה
-                {centerX - 150, centerY + 200, 240},    // למטה שמאל
-                {centerX - 200, centerY, 300},          // שמאל
-                {centerX - 200, centerY - 100, 300}     // שמאל למעלה
+    private void initializeTiles() {
+        tiles = new ArrayList<>();
+
+        // יצירת רשימת המשאבים והמספרים כמו במשחק האמיתי
+        List<ResourceType> resources = new ArrayList<>();
+
+        // 4 חיטה, 4 עץ, 4 כבשים
+        for (int i=0; i<4; i++) {
+            resources.add(ResourceType.WHEAT);
+            resources.add(ResourceType.WOOD);
+            resources.add(ResourceType.SHEEP);
+        }
+
+        // 3 לבנים, 3 עפר
+        for (int i=0; i<3; i++) {
+            resources.add(ResourceType.BRICK);
+            resources.add(ResourceType.ORE);
+        }
+
+        // 1 מדבר
+        resources.add(ResourceType.DESERT);
+
+        // רשימת המספרים
+        List<Integer> shuffledNumbers = new ArrayList<>(numbers);
+        Collections.shuffle(shuffledNumbers);
+        Collections.shuffle(resources);
+
+        // יצירת הלוח - 19 משבצות במבנה משושה
+        double centerX = BOARD_WIDTH / 2;
+        double centerY = BOARD_HEIGHT / 2;
+
+        // מרחקים מדויקים למשושים צמודים
+        double hexWidth = HEX_SIZE * Math.sqrt(3); // רוחב המשושה
+        double hexVerticalSpacing = HEX_SIZE * 1.5; // מרווח אנכי בין שורות
+
+        // מערך המיקומים של כל 19 המשבצות - מחושב בדיוק לצמידות
+        double[][] positions = {
+                // שורה עליונה (3 משבצות)
+                {centerX - hexWidth/2, centerY - hexVerticalSpacing * 2},
+                {centerX + hexWidth/2, centerY - hexVerticalSpacing * 2},
+                {centerX + hexWidth * 1.5, centerY - hexVerticalSpacing * 2},
+
+                // שורה שנייה (4 משבצות)
+                {centerX - hexWidth, centerY - hexVerticalSpacing},
+                {centerX, centerY - hexVerticalSpacing},
+                {centerX + hexWidth, centerY - hexVerticalSpacing},
+                {centerX + hexWidth * 2, centerY - hexVerticalSpacing},
+
+                // שורה אמצעית (5 משבצות)
+                {centerX - hexWidth * 1.5, centerY},
+                {centerX - hexWidth/2, centerY},
+                {centerX + hexWidth/2, centerY}, // מרכז
+                {centerX + hexWidth * 1.5, centerY},
+                {centerX + hexWidth * 2.5, centerY},
+
+                // שורה רביעית (4 משבצות)
+                {centerX - hexWidth, centerY + hexVerticalSpacing},
+                {centerX, centerY + hexVerticalSpacing},
+                {centerX + hexWidth, centerY + hexVerticalSpacing},
+                {centerX + hexWidth * 2, centerY + hexVerticalSpacing},
+
+                // שורה תחתונה (3 משבצות)
+                {centerX - hexWidth/2, centerY + hexVerticalSpacing * 2},
+                {centerX + hexWidth/2, centerY + hexVerticalSpacing * 2},
+                {centerX + hexWidth * 1.5, centerY + hexVerticalSpacing * 2}
         };
 
-        for (int i = 0; i < Math.min(PORTS.length, portPositions.length); i++) {
-            Port port = new Port(PORTS[i], SIZE * 0.6);
-            port.setLayoutX(portPositions[i][0]);
-            port.setLayoutY(portPositions[i][1]);
-            port.setRotate(portPositions[i][2]);
-            root.getChildren().add(port);
+        int numberIndex = 0;
+        for (int i = 0; i < positions.length && i < resources.size(); i++) {
+            ResourceType resource = resources.get(i);
+            int number = resource == ResourceType.DESERT ? 0 : shuffledNumbers.get(numberIndex++);
+            tiles.add(new HexTile(resource, number, positions[i][0], positions[i][1]));
         }
     }
 
-    private void addLegend(Pane root) {
-        Text legendTitle = new Text(20, 100, "משאבים:");
-        legendTitle.setFont(Font.font("Arial", 16));
-        legendTitle.setFill(Color.DARKBLUE);
-        root.getChildren().add(legendTitle);
+    private void createBoard() {
+        for (HexTile tile : tiles) {
+            createHexTile(tile);
+        }
+    }
 
-        String[] resourceNames = {"עץ", "חמר", "כבשים", "חיטה", "עפרות", "מדבר"};
-        Color[] resourceColors = {
-                Color.web("#228B22"), Color.web("#CD853F"), Color.web("#90EE90"),
-                Color.web("#FFD700"), Color.web("#708090"), Color.web("#F4A460")
-        };
+    private void createHexTile(HexTile tile) {
+        Polygon hex = createHexagon(tile.getX(), tile.getY(), HEX_SIZE);
+        hex.setFill(Color.TRANSPARENT); // צבע בסיס ניטרלי
+        hex.setStroke(Color.BLACK);
+        hex.setStrokeWidth(2);
 
-        for (int i = 0; i < resourceNames.length; i++) {
-            Circle colorCircle = new Circle(35, 130 + i * 25, 8);
-            colorCircle.setFill(resourceColors[i]);
-            colorCircle.setStroke(Color.BLACK);
+        // טעינת תמונת המשאב קודם (כבסיס)
+        try {
+            String imgPath = "/Tiles/" + tile.getResourceType().getImagePath();
+            Image image = new Image(getClass().getResourceAsStream(imgPath));
 
-            Text resourceName = new Text(50, 135 + i * 25, resourceNames[i]);
-            resourceName.setFont(Font.font("Arial", 12));
-            resourceName.setFill(Color.BLACK);
+            if (!image.isError()) {
+                ImageView imageView = new ImageView(image);
+                imageView.setFitWidth(HEX_SIZE * 2);
+                imageView.setFitHeight(HEX_SIZE * 2);
+                imageView.setPreserveRatio(false); // מותח לגודל המדויק של המשושה
 
-            root.getChildren().addAll(colorCircle, resourceName);
+                // מרכוז התמונה במשושה
+                imageView.setX(tile.getX() - HEX_SIZE);
+                imageView.setY(tile.getY() - HEX_SIZE);
+
+                // הוספת מסכה של משושה לתמונה
+                imageView.setClip(createHexagon(HEX_SIZE, HEX_SIZE, HEX_SIZE));
+
+                root.getChildren().add(imageView);
+            }
+
+        } catch (Exception e) {
+            // אם התמונה לא נמצאת, נשתמש בצבע רקע בלבד
+            hex.setFill(Color.BEIGE);
+            System.out.println("Could not load image for: " + tile.getResourceType().getImagePath());
         }
 
-        // הוראות
-        Text instructions = new Text(20, 300,
-                "חוקי המשחק:\n" +
-                        "• מספרים אדומים (6,8) - יותר סיכויים\n" +
-                        "• נמלים מאפשרים סחר\n" +
-                        "• המדבר מתחיל עם השודד");
-        instructions.setFont(Font.font("Arial", 11));
-        instructions.setFill(Color.DARKBLUE);
-        root.getChildren().add(instructions);
+        // הוספת המשושה מעל התמונה (רק הקווים החיצוניים)
+        root.getChildren().add(hex);
+
+        // הוספת מספר אם זה לא מדבר
+        if (tile.getNumber() > 0) {
+            // עיגול רקע למספר
+            Circle numberCircle = new Circle(tile.getX(), tile.getY(), 20);
+            numberCircle.setFill(Color.WHITE);
+            numberCircle.setStroke(Color.BLACK);
+            numberCircle.setStrokeWidth(2);
+
+            // טקסט המספר
+            Text numberText = new Text(String.valueOf(tile.getNumber()));
+            numberText.setFont(Font.font("Arial", FontWeight.BOLD, 22));
+
+            // צבע אדום למספרים 6 ו-8 (סיכוי גבוה)
+            if (tile.getNumber() == 6 || tile.getNumber() == 8) {
+                numberText.setFill(Color.RED);
+            } else {
+                numberText.setFill(Color.BLACK);
+            }
+
+            // מרכוז הטקסט
+            numberText.setX(tile.getX() - numberText.getBoundsInLocal().getWidth() / 2);
+            numberText.setY(tile.getY() + numberText.getBoundsInLocal().getHeight() / 4);
+
+            root.getChildren().addAll(numberCircle, numberText);
+        }
+
+    }
+
+    private Polygon createHexagon(double centerX, double centerY, double size) {
+        Polygon hexagon = new Polygon();
+
+        for(int i=0; i<6; i++) {
+            double angle = Math.PI / 2 + i * Math.PI / 3; // התחלה מהחלק העליון
+            double x = centerX + size * Math.cos(angle);
+            double y = centerY + size * Math.sin(angle);
+            hexagon.getPoints().addAll(x, y);
+        }
+
+        return hexagon;
     }
 
     public static void main(String[] args) {
