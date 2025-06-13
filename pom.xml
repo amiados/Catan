@@ -44,9 +44,17 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>Board</mainClass> <!-- שנה לשם המחלקה שלך כולל package אם יש -->
+                    <mainClass>catan.Board</mainClass> <!-- שנה לשם המחלקה שלך כולל package אם יש -->
                 </configuration>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>**/*.png</include>
+                </includes>
+            </resource>
+        </resources>
     </build>
 </project>

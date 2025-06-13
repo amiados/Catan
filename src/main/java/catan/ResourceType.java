@@ -1,3 +1,4 @@
+package catan;
 
 public enum ResourceType {
     WHEAT("wheat.png"),

@@ -1,9 +1,12 @@
+package catan;
+
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Polygon;
 import javafx.scene.text.Font;
@@ -36,7 +39,7 @@ public class Board extends Application {
         createBoard();
 
         Scene scene = new Scene(root, BOARD_WIDTH, BOARD_HEIGHT);
-        stage.setTitle("Catan Board");
+        stage.setTitle("Catan catan.Board");
         stage.setScene(scene);
         stage.show();
     }
@@ -123,39 +126,41 @@ public class Board extends Application {
     }
 
     private void createHexTile(HexTile tile) {
+        // יצירת המשושה
         Polygon hex = createHexagon(tile.getX(), tile.getY(), HEX_SIZE);
-        hex.setFill(Color.TRANSPARENT); // צבע בסיס ניטרלי
-        hex.setStroke(Color.BLACK);
-        hex.setStrokeWidth(2);
 
-        // טעינת תמונת המשאב קודם (כבסיס)
+        // טעינת תמונת המשאב ומילוי המשושה בה
         try {
             String imgPath = "/Tiles/" + tile.getResourceType().getImagePath();
             Image image = new Image(getClass().getResourceAsStream(imgPath));
 
             if (!image.isError()) {
-                ImageView imageView = new ImageView(image);
-                imageView.setFitWidth(HEX_SIZE * 2);
-                imageView.setFitHeight(HEX_SIZE * 2);
-                imageView.setPreserveRatio(false); // מותח לגודל המדויק של המשושה
-
-                // מרכוז התמונה במשושה
-                imageView.setX(tile.getX() - HEX_SIZE);
-                imageView.setY(tile.getY() - HEX_SIZE);
-
-                // הוספת מסכה של משושה לתמונה
-                imageView.setClip(createHexagon(HEX_SIZE, HEX_SIZE, HEX_SIZE));
-
-                root.getChildren().add(imageView);
+                ImagePattern pattern = new ImagePattern(
+                        image,
+                        tile.getX() - HEX_SIZE,
+                        tile.getY() - HEX_SIZE,
+                        HEX_SIZE * 2,
+                        HEX_SIZE * 2,
+                        false
+                );
+                // מילוי המשושה בתמונה במקום צבע
+                hex.setFill(pattern);
+            } else {
+                // אם התמונה לא נמצאת, נשתמש בצבע רקע
+                hex.setFill(getResourceColor(tile.getResourceType()));
             }
 
         } catch (Exception e) {
-            // אם התמונה לא נמצאת, נשתמש בצבע רקע בלבד
-            hex.setFill(Color.BEIGE);
+            // אם התמונה לא נמצאת, נשתמש בצבע רקע
+            hex.setFill(getResourceColor(tile.getResourceType()));
             System.out.println("Could not load image for: " + tile.getResourceType().getImagePath());
         }
 
-        // הוספת המשושה מעל התמונה (רק הקווים החיצוניים)
+        // עיצוב קווי המשושה
+        hex.setStroke(Color.BLACK);
+        hex.setStrokeWidth(6);
+
+        // הוספת המשושה
         root.getChildren().add(hex);
 
         // הוספת מספר אם זה לא מדבר
@@ -183,7 +188,6 @@ public class Board extends Application {
 
             root.getChildren().addAll(numberCircle, numberText);
         }
-
     }
 
     private Polygon createHexagon(double centerX, double centerY, double size) {
@@ -197,6 +201,19 @@ public class Board extends Application {
         }
 
         return hexagon;
+    }
+
+    // פונקציה עזר לצבעי רקע אם התמונות לא נטענות
+    private Color getResourceColor(ResourceType resourceType) {
+        switch (resourceType) {
+            case WHEAT: return Color.GOLD;
+            case WOOD: return Color.DARKGREEN;
+            case SHEEP: return Color.LIGHTGREEN;
+            case BRICK: return Color.DARKRED;
+            case ORE: return Color.GRAY;
+            case DESERT: return Color.SANDYBROWN;
+            default: return Color.BEIGE;
+        }
     }
 
     public static void main(String[] args) {

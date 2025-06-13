@@ -1,11 +1,4 @@
-import javafx.scene.image.Image;
-import javafx.scene.paint.ImagePattern;
-import javafx.scene.shape.Polygon;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
-import javafx.scene.text.Text;
-import javafx.scene.text.Font;
-import javafx.scene.Group;
+package catan;
 
 public class HexTile {
     private final ResourceType resourceType;

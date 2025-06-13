@@ -1,3 +1,5 @@
+import catan.BuildingType;
+
 public class Vertex {
     private final int ID;
     private BuildingType building;

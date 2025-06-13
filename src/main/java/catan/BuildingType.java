@@ -1,3 +1,5 @@
+package catan;
+
 public enum BuildingType {
     NONE,       // אין כלום על הפינה הזו
     SETTLEMENT, // יישוב
