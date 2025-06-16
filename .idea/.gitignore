@@ -1,8 +1,43 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-# Editor-based HTTP Client requests
-/httpRequests/
-# Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
+# === Java Build Files ===
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# === Maven / Gradle ===
+target/
+build/
+out/
+.gradle/
+.mvn/
+!gradle-wrapper.jar
+
+# === IntelliJ IDEA ===
+.idea/
+*.iml
+*.iws
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/dataSources.ids
+.idea/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/sonarlint/
+.idea/httpRequests/
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+
+# === Logs and Temporary ===
+*.tmp
+*.bak
+*.swp
+*.swo
+*.orig
+*.rej
+
+# === Test Reports ===
+test-output/
+surefire-reports/
