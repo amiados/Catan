@@ -1,0 +1,89 @@
+package Model;
+
+import Utils.DatabaseConnection;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+public class GameDAO {
+
+    public GameDAO() {
+    }
+
+    public boolean createGame(Game game) throws SQLException {
+        String sql = """
+                INSERT INTO Games
+                 (GameId, CreatedAt, StartedAt, EndedAt, HostId)
+                  VALUES (?, ?, ?, ?, ?)
+                """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, game.getId());
+            ps.setTimestamp(2, Timestamp.from(game.getCreatedAt()));
+            ps.setTimestamp(3, game.getStartedAt() == null ? null : Timestamp.from(game.getStartedAt()));
+            ps.setTimestamp(4, game.getEndedAt() == null ? null : Timestamp.from(game.getEndedAt()));
+            ps.setObject(5, game.getUserId());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public Game getGameById(UUID gameId) throws SQLException{
+        String sql = "SELECT * FROM Games WHERE GameId = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, gameId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new Game(
+                            UUID.fromString(rs.getString("GameId")),
+                            rs.getTimestamp("CreatedAt").toInstant(),
+                            rs.getTimestamp("StartedAt") == null ? null : rs.getTimestamp("StartedAt").toInstant(),
+                            rs.getTimestamp("EndedAt") == null ? null : rs.getTimestamp("EndedAt").toInstant(),
+                            UUID.fromString(rs.getString("HostId")),
+                            null
+                    );
+                }
+                return null;
+            }
+        }
+    }
+
+    public List<Game> getGamesByUserId(UUID userId) throws SQLException {
+        String sql = "SELECT * FROM Games WHERE HostId = ?";
+        List<Game> games = new ArrayList<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    games.add(parseGame(rs));
+                }
+            }
+        }
+        return games;
+    }
+
+    public int countGames() throws SQLException {
+        String sql = "SELECT COUNT(*) FROM Games";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    // ✨ מחלקה פנימית לשליפת אובייקט Game
+    private Game parseGame(ResultSet rs) throws SQLException {
+        return new Game(
+                UUID.fromString(rs.getString("GameId")),
+                rs.getTimestamp("CreatedAt").toInstant(),
+                rs.getTimestamp("StartedAt") == null ? null : rs.getTimestamp("StartedAt").toInstant(),
+                rs.getTimestamp("EndedAt") == null ? null : rs.getTimestamp("EndedAt").toInstant(),
+                UUID.fromString(rs.getString("HostId")),
+                null // אם יש שדה status תוכל להוסיף גם אותו
+        );
+    }
+}
