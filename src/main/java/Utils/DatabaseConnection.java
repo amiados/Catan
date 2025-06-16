@@ -104,4 +104,24 @@ public class DatabaseConnection {
             System.out.println("🔌 החיבור למסד הנתונים נסגר.");
         }
     }
+
+    public static void main(String[] args) {
+        System.out.println("🔍 מנסה לפתוח חיבור למסד הנתונים...");
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            if (connection != null && !connection.isClosed()) {
+                System.out.println("✅ הצלחה: החיבור נפתח בהצלחה!");
+            } else {
+                System.out.println("❌ החיבור נכשל או סגור.");
+            }
+        } catch (SQLException e) {
+            System.out.println("❌ שגיאה ב-SQL: " + e.getMessage());
+            e.printStackTrace();
+        } catch (Exception e) {
+            System.out.println("❌ שגיאה כללית: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        // סגירת מאגר החיבורים
+        DatabaseConnection.close();
+    }
 }

@@ -77,7 +77,6 @@ public class OTPVerificationScreen extends Application {
         stage.show();
 
         startCountdown();
-        sendOtp();
     }
 
     private void verifyOtp() {

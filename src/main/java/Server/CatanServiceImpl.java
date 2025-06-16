@@ -129,6 +129,7 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
         try {
             user = userDAO.getUserByEmail(email);
         } catch (SQLException | IOException e) {
+            e.printStackTrace();
             respondConnection(responseObserver, false,
                     "Server error",
                     null,
@@ -191,6 +192,7 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
                     null,
                     user.getId().toString());
         } catch (Exception e) {
+            e.printStackTrace();
             respondConnection(responseObserver, false,
                     "Eailed to create session",
                     user.getUsername(),
@@ -240,6 +242,7 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
                     null,
                     user.getId().toString());
         } catch (Exception e) {
+            e.printStackTrace();
             respondConnection(responseObserver, false,
                     "Internal server error",
                     user.getUsername(),
@@ -304,7 +307,7 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
             response.setSuccess(false)
                     .addErrors("Internal server error")
                     .setMessage("Database or IO error while fetching user.");
-            e.printStackTrace(); // עדיף להחליף בלוג בעתיד
+            e.printStackTrace();
         }
 
         responseObserver.onNext(response.build());

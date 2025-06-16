@@ -120,15 +120,18 @@
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                    </execution>
-                </executions>
                 <configuration>
-                    <mainClass>UI.WelcomeScreen</mainClass> <!-- שנה לשם המחלקה שלך כולל package אם יש -->
+                    <mainClass>UI.WelcomeScreen</mainClass> <!-- שנה לשם המחלקה שלך -->
+                </configuration>
+            </plugin>
+
+            <!-- Plugin להרצת שרת -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <mainClass>Server.CatanServer</mainClass>
                 </configuration>
             </plugin>
         </plugins>
@@ -136,6 +139,7 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <includes>
+                    <include>**/*.properties</include>
                     <include>**/*.png</include>
                 </includes>
             </resource>
