@@ -1,7 +1,10 @@
 package UI;
 
 import Client.AuthServiceClient;
+import catan.Catan;
+import com.google.common.util.concurrent.ListenableFuture;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -13,6 +16,8 @@ import javafx.stage.Stage;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.effect.DropShadow;
+
+import java.util.concurrent.Executors;
 
 public class LoginScreen extends Application {
 
@@ -55,9 +60,32 @@ public class LoginScreen extends Application {
             } else if (password.length() < 6) {
                 errorLabel.setText("Password must be at least 6 characters");
             } else {
-                errorLabel.setText("");
-                // Attempt login logic
-                // stage.setScene(MainMenuScreen.createScene()); // Example next scene
+                ListenableFuture<Catan.ConnectionResponse> future = authClient.login(email, password);
+                future.addListener(() -> {
+                    try {
+                        Catan.ConnectionResponse response = future.get();
+                        if (response.getSuccess()) {
+                            Platform.runLater(() -> {
+                                try {
+                                    new OTPVerificationScreen(authClient, email, false).start(new Stage());
+                                    primaryStage.close();
+                                } catch (Exception ex) {
+                                    ex.printStackTrace();
+                                    showError(errorLabel, "Failed to load OTP screen");
+                                }
+                            });
+                        } else {
+                            Platform.runLater(() ->
+                                    showError(errorLabel, String.join("\n", response.getErrorsList()))
+                            );
+                        }
+                    } catch (Exception ex) {
+                        Platform.runLater(() ->
+                                showError(errorLabel, "Server error during registration")
+                        );
+                        ex.printStackTrace();
+                    }
+                }, Executors.newSingleThreadExecutor());
             }
         });
 
@@ -105,6 +133,10 @@ public class LoginScreen extends Application {
             else
                 textField.setStyle("-fx-background-radius: 8;");
         });
+    }
+
+    private void showError(Label label, String message) {
+        label.setText(message);
     }
 
 }

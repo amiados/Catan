@@ -1,5 +1,6 @@
-package Model;
+package Model.dao;
 
+import Model.obj.Message;
 import Utils.DatabaseConnection;
 
 import java.sql.*;

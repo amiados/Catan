@@ -166,7 +166,7 @@ public class Board extends Application {
             }
         }
         try {
-            Image img = new Image(getClass().getResourceAsStream("/buildingCost.png"));
+            Image img = new Image(getClass().getResourceAsStream("/Utils/buildingCost.png"));
             ImageView view = new ImageView(img);
             view.setX(10);
             view.setY(410);

@@ -1,5 +1,7 @@
-package Model;
+package Model.dao;
 
+import Model.InviteStatus;
+import Model.obj.Invite;
 import Utils.DatabaseConnection;
 
 import java.sql.*;

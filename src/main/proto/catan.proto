@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package catan;
 
-service catan {
+service CatanService {
   // הרשמה / כניסה
   rpc register(RegisterRequest) returns (ConnectionResponse);
   rpc login(LoginRequest) returns (ConnectionResponse);
@@ -11,15 +11,16 @@ service catan {
   rpc verifyRegisterOtp(VerifyOtpRequest) returns (ConnectionResponse);
   rpc verifyLoginOtp(VerifyOtpRequest) returns (ConnectionResponse);
 
+  // ניהול קבוצות
+  rpc getAllGroups(UserRequest) returns (AllGroupsResponse);
+  rpc createGroup(CreateGroupRequest) returns (GroupResponse);
+  rpc inviteToGroup(InviteToGroupRequest) returns (GroupResponse);
+  rpc respondToGroupInvitation(GroupInviteResponse) returns (GroupResponse);
+
   // ניהול משחק
-  rpc createGame(CreateGameRequest) returns (GameResponse);
-  rpc inviteToGame(InviteRequest) returns (GameResponse);
-  rpc respondToInvitation(InviteResponse) returns (GameResponse);
   rpc startGame(GameActionRequest) returns (GameResponse);
   rpc endGame(GameActionRequest) returns (GameResponse);
   rpc leaveGame(GameActionRequest) returns (GameResponse);
-  rpc pauseGame(GameActionRequest) returns (GameResponse);
-  rpc getJoinableGames(Empty) returns (JoinableGamesResponse);
 
   // פעולות שחקן במשחק
   rpc buildSettlement(BuildRequest) returns (GameResponse);
@@ -84,21 +85,52 @@ message ConnectionResponse {
   string userId = 5;
 }
 
-// ========== משחקים ==========
-
-message CreateGameRequest {
-  string creatorId = 1;
+message AllGroupsResponse {
+  repeated GroupInfo groups = 1;
 }
 
-message InviteRequest {
-  string gameId = 1;
+message GroupInfo {
+  string groupId = 1;
+  string groupName = 2;
+  string creatorUsername = 3;
+}
+
+// ========== משחקים ==========
+
+message CreateGroupRequest {
+  string creatorId = 1;
+  string groupName = 2;
+}
+
+message GroupResponse {
+  bool success = 1;
+  string message = 2;
+  string groupId = 3;
+}
+
+message InviteToGroupRequest {
+  string groupId = 1;
   string invitedUserId = 2;
 }
 
-message InviteResponse {
-  string gameId = 1;
+message GroupInviteResponse {
+  string groupId = 1;
   string userId = 2;
   bool accepted = 3;
+}
+
+message StartGameRequest {
+  string groupId = 1;
+  string initiatorUserId = 2;
+}
+
+message EndGameRequest {
+  string gameId = 1;
+  string userId = 2;
+}
+
+message UserRequest {
+  string userId = 1;
 }
 
 message GameActionRequest {
@@ -110,10 +142,6 @@ message GameResponse {
   bool success = 1;
   string message = 2;
   string gameId = 3;
-}
-
-message JoinableGamesResponse {
-  repeated string gameIds = 1;
 }
 
 // ========== בנייה ==========

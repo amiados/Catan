@@ -1,6 +1,6 @@
 package catan;
 
-import Model.Player;
+import Model.obj.Player;
 
 public class Edge {
     private Player owner;

@@ -35,6 +35,8 @@ public class OTPVerificationScreen extends Application {
     private Button resendBtn;
     private Timeline countdown;
 
+    private Stage currentStage;
+
     public OTPVerificationScreen(AuthServiceClient authClient, String email, boolean isRegisterMode) {
         this.authClient = authClient;
         this.email = email;
@@ -43,6 +45,8 @@ public class OTPVerificationScreen extends Application {
 
     @Override
     public void start(Stage stage) {
+        this.currentStage = stage;
+
         VBox root = new VBox(20);
         root.setPadding(new Insets(40));
         root.setAlignment(Pos.CENTER);
@@ -97,7 +101,13 @@ public class OTPVerificationScreen extends Application {
                     Platform.runLater(() -> {
                         showMessage("OTP Verified!", Color.GREEN);
                         if (countdown != null) countdown.stop();
-                        // TODO: move to main screen or game lobby
+                        try {
+                            new HomePage(response.getUserId(), authClient).start(new Stage());
+                            currentStage.close();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            showMessage("Failed to load Home Page", Color.RED);
+                        }
                     });
                 } else {
                     failedAttempts++;

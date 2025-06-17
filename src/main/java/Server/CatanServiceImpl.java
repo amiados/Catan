@@ -1,14 +1,14 @@
 package Server;
 
-import Model.*;
+import Model.dao.*;
+import Model.obj.User;
 import Security.PasswordHasher;
 import Utils.EmailSender;
 import Utils.OTPManager;
 import Utils.OTP_Entry;
 import Utils.ValidationResult;
 import catan.Catan;
-import catan.PieceColor;
-import catan.catanGrpc;
+import catan.CatanServiceGrpc;
 import com.google.common.cache.Cache;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class CatanServiceImpl extends catanGrpc.catanImplBase {
+public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
 
     private final Cache<String, OTP_Entry> otpCache;
     private final Cache<String, User> pendingRegistrations;
@@ -315,90 +315,8 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
     }
 
     @Override
-    public void createGame(Catan.CreateGameRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        try {
-            UUID creatorId = UUID.fromString(request.getCreatorId());
-            User creator = userDAO.getUserById(creatorId);
-            if (creator == null) {
-                responseObserver.onError(
-                        Status.NOT_FOUND
-                                .withDescription("Creator user not found")
-                                .asRuntimeException()
-                );
-                return;
-            }
-
-            UUID gameId = UUID.randomUUID();
-            Game game = new Game(gameId, Instant.now(), null, null, creatorId, GameStatus.WAITING);
-            if (!gameDAO.createGame(game)) {
-                responseObserver.onError(
-                        Status.INTERNAL
-                                .withDescription("Failed to create game in database")
-                                .asRuntimeException()
-                );
-                return;
-            }
-
-            Player creatorPlayer = new Player(UUID.randomUUID(), creator, PieceColor.BLUE);
-            if (!playerDAO.addPlayerToGame(creatorPlayer, gameId)) {
-                responseObserver.onError(
-                        Status.INTERNAL
-                                .withDescription("Failed to add host to players list")
-                                .asRuntimeException()
-                );
-            }
-
-            Catan.GameResponse response = Catan.GameResponse.newBuilder()
-                    .setGameId(gameId.toString())
-                    .setSuccess(true)
-                    .setMessage("Game Created")
-                    .build();
-
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-        } catch (Exception e) {
-            e.printStackTrace();
-            responseObserver.onError(
-                    Status.INTERNAL
-                            .withDescription("Server error: " + e.getMessage())
-                            .asRuntimeException()
-            );
-        }
-    }
-
-    @Override
-    public void inviteToGame(Catan.InviteRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.inviteToGame(request, responseObserver);
-    }
-
-    @Override
-    public void respondToInvitation(Catan.InviteResponse request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.respondToInvitation(request, responseObserver);
-    }
-
-    @Override
-    public void startGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.startGame(request, responseObserver);
-    }
-
-    @Override
-    public void endGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.endGame(request, responseObserver);
-    }
-
-    @Override
-    public void leaveGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.leaveGame(request, responseObserver);
-    }
-
-    @Override
-    public void pauseGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.pauseGame(request, responseObserver);
-    }
-
-    @Override
-    public void getJoinableGames(Catan.Empty request, StreamObserver<Catan.JoinableGamesResponse> responseObserver) {
-        super.getJoinableGames(request, responseObserver);
+    public void buildRoad(Catan.BuildRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.buildRoad(request, responseObserver);
     }
 
     @Override
@@ -407,53 +325,13 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
     }
 
     @Override
-    public void promoteToCity(Catan.BuildRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.promoteToCity(request, responseObserver);
-    }
-
-    @Override
-    public void buildRoad(Catan.BuildRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.buildRoad(request, responseObserver);
-    }
-
-    @Override
-    public void rollDices(Catan.GameActionRequest request, StreamObserver<Catan.DiceRollResponse> responseObserver) {
-        super.rollDices(request, responseObserver);
-    }
-
-    @Override
-    public void moveRobber(Catan.MoveRobberRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.moveRobber(request, responseObserver);
-    }
-
-    @Override
-    public void stealCardFromPlayer(Catan.StealRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.stealCardFromPlayer(request, responseObserver);
-    }
-
-    @Override
-    public void endTurn(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.endTurn(request, responseObserver);
-    }
-
-    @Override
     public void buyDevelopmentCard(Catan.BuyDevCardRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
         super.buyDevelopmentCard(request, responseObserver);
     }
 
     @Override
-    public void playDevelopmentCard(Catan.PlayDevCardRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.playDevelopmentCard(request, responseObserver);
-    }
-
-    @Override
-    public void monopolyCardUse(Catan.MonopolyUseRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.monopolyCardUse(request, responseObserver);
-    }
-
-    @Override
-    public void roadBuildingCardUse(Catan.RoadBuildingRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
-        super.roadBuildingCardUse(request, responseObserver);
+    public void createGroup(Catan.CreateGroupRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
+        super.createGroup(request, responseObserver);
     }
 
     @Override
@@ -462,18 +340,28 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
     }
 
     @Override
+    public void endGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.endGame(request, responseObserver);
+    }
+
+    @Override
+    public void endTurn(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.endTurn(request, responseObserver);
+    }
+
+    @Override
+    public void getAllGroups(Catan.UserRequest request, StreamObserver<Catan.AllGroupsResponse> responseObserver) {
+        super.getAllGroups(request, responseObserver);
+    }
+
+    @Override
     public void getPlayerInfo(Catan.PlayerInfoRequest request, StreamObserver<Catan.PlayerInfoResponse> responseObserver) {
         super.getPlayerInfo(request, responseObserver);
     }
 
     @Override
-    public void tradeRequest(Catan.TradeRequest request, StreamObserver<Catan.TradeResponse> responseObserver) {
-        super.tradeRequest(request, responseObserver);
-    }
-
-    @Override
-    public void respondToTrade(Catan.TradeResponse request, StreamObserver<Catan.TradeResult> responseObserver) {
-        super.respondToTrade(request, responseObserver);
+    public void inviteToGroup(Catan.InviteToGroupRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
+        super.inviteToGroup(request, responseObserver);
     }
 
     @Override
@@ -482,13 +370,68 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
     }
 
     @Override
+    public void leaveGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.leaveGame(request, responseObserver);
+    }
+
+    @Override
+    public void monopolyCardUse(Catan.MonopolyUseRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.monopolyCardUse(request, responseObserver);
+    }
+
+    @Override
+    public void moveRobber(Catan.MoveRobberRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.moveRobber(request, responseObserver);
+    }
+
+    @Override
+    public void playDevelopmentCard(Catan.PlayDevCardRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.playDevelopmentCard(request, responseObserver);
+    }
+
+    @Override
+    public void promoteToCity(Catan.BuildRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.promoteToCity(request, responseObserver);
+    }
+
+    @Override
     public void reportPlayer(Catan.ReportRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
         super.reportPlayer(request, responseObserver);
     }
 
     @Override
+    public void respondToGroupInvitation(Catan.GroupInviteResponse request, StreamObserver<Catan.GroupResponse> responseObserver) {
+        super.respondToGroupInvitation(request, responseObserver);
+    }
+
+    @Override
+    public void respondToTrade(Catan.TradeResponse request, StreamObserver<Catan.TradeResult> responseObserver) {
+        super.respondToTrade(request, responseObserver);
+    }
+
+    @Override
+    public void roadBuildingCardUse(Catan.RoadBuildingRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.roadBuildingCardUse(request, responseObserver);
+    }
+
+    @Override
+    public void rollDices(Catan.GameActionRequest request, StreamObserver<Catan.DiceRollResponse> responseObserver) {
+        super.rollDices(request, responseObserver);
+    }
+
+    @Override
     public void sendMessage(Catan.Message request, StreamObserver<Catan.ACK> responseObserver) {
         super.sendMessage(request, responseObserver);
+    }
+
+    @Override
+    public void startGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.startGame(request, responseObserver);
+    }
+
+    @Override
+    public void stealCardFromPlayer(Catan.StealRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.stealCardFromPlayer(request, responseObserver);
     }
 
     @Override
@@ -499,6 +442,11 @@ public class CatanServiceImpl extends catanGrpc.catanImplBase {
     @Override
     public void subscribeToGameEvents(Catan.GameSubscribeRequest request, StreamObserver<Catan.GameEvent> responseObserver) {
         super.subscribeToGameEvents(request, responseObserver);
+    }
+
+    @Override
+    public void tradeRequest(Catan.TradeRequest request, StreamObserver<Catan.TradeResponse> responseObserver) {
+        super.tradeRequest(request, responseObserver);
     }
 
     private void respondConnection(StreamObserver<Catan.ConnectionResponse> observer,

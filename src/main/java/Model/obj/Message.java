@@ -1,24 +1,23 @@
-package Model;
+package Model.obj;
 
 import java.time.Instant;
 import java.util.UUID;
 
-public class Invite {
+public class Message {
     private UUID id;
     private UUID gameId;
     private UUID senderId;
-    private UUID receiverId;
-    private InviteStatus status;
+    private byte[] content;
     private Instant sentAt;
 
-    public Invite(UUID id, UUID gameId, UUID senderId, UUID receiverId, InviteStatus status, Instant sentAt) {
+    public Message(UUID id, UUID gameId, UUID senderId, byte[] content, Instant sentAt) {
         this.id = id;
         this.gameId = gameId;
         this.senderId = senderId;
-        this.receiverId = receiverId;
-        this.status = status;
+        this.content = content;
         this.sentAt = sentAt;
     }
+
 
     public UUID getId() {
         return id;
@@ -29,17 +28,14 @@ public class Invite {
     public UUID getSenderId() {
         return senderId;
     }
-    public UUID getReceiverId() {
-        return receiverId;
-    }
-    public InviteStatus getStatus() {
-        return status;
+    public byte[] getContent() {
+        return content;
     }
     public Instant getSentAt() {
         return sentAt;
     }
 
-    public void setStatus(InviteStatus status) {
-        this.status = status;
+    public void setContent(byte[] content) {
+        this.content = content;
     }
 }

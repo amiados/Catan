@@ -29,7 +29,7 @@ public class WelcomeScreen extends Application {
         title.setFill(Color.DARKSLATEBLUE);
 
         // לוגו המשחק (אם יש)
-        ImageView logo = new ImageView(new Image("/catanLogo.png"));
+        ImageView logo = new ImageView(new Image("/Utils/catanLogo.png"));
         logo.setFitWidth(200);
         logo.setPreserveRatio(true);
 

@@ -1,5 +1,7 @@
-package Model;
+package Model.dao;
 
+import Model.obj.User;
+import Model.obj.Player;
 import Utils.DatabaseConnection;
 import catan.PieceColor;
 
@@ -125,4 +127,5 @@ public class PlayerDAO {
             return ps.executeUpdate() > 0;
         }
     }
+
 }

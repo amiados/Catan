@@ -1,5 +1,7 @@
-package Model;
+package Model.dao;
 
+import Model.obj.Group;
+import Model.obj.User;
 import Utils.DatabaseConnection;
 
 import java.io.IOException;
@@ -7,6 +9,7 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.List;
 
 public class UserDAO {
 
@@ -152,6 +155,28 @@ public class UserDAO {
         }catch (Exception e) {
             e.printStackTrace();
             return false;
+        }
+    }
+
+    public List<Group> getAllGroups(UUID userId) throws SQLException{
+        String sql = """
+            SELECT g.GroupId, g.GroupName, u.Username
+            FROM Groups g
+            JOIN Users u ON g.CreatorId = u.Id
+            WHERE g.GroupId IN (
+                SELECT GroupId
+                FROM GroupMembers
+                WHERE UserId = ?
+            )
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(sql)){
+
+            stmt.setString(1, userId.toString());
+            try (ResultSet rs = stmt.executeQuery()) {
+                rs.next()
+            }
         }
     }
 

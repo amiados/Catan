@@ -129,11 +129,9 @@ public class RegisterScreen extends Application {
     private boolean isValidEmail(String email) {
         return email != null && email.matches("^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,6}$");
     }
-
     private boolean isValidUsername(String username) {
         return username != null && username.length() >= 6;
     }
-
     private boolean isValidPassword(String password) {
         if (password == null) return false;
         return password.length() >= 8 &&

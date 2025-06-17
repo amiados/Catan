@@ -1,5 +1,6 @@
-package Model;
+package Model.dao;
 
+import Model.obj.Game;
 import Utils.DatabaseConnection;
 
 import java.sql.*;

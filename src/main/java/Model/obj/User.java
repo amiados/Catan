@@ -1,4 +1,4 @@
-package Model;
+package Model.obj;
 
 import Security.PasswordHasher;
 import Utils.ValidationResult;

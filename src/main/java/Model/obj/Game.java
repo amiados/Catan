@@ -1,4 +1,6 @@
-package Model;
+package Model.obj;
+
+import Model.GameStatus;
 
 import java.time.Instant;
 import java.util.UUID;
