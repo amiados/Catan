@@ -24,11 +24,14 @@ public class User {
     // זמן עד מתי החשבון נעול (null אם לא נעול)
     private Instant lockUntil;
 
-    public User(UUID id, String username, String email, String passwordHash) {
+    public User(UUID id, String username, String email, String passwordHash, Instant lastLogin, int failedLogins, Instant lockUntil) {
         this.id = id;
         this.username = username;
-        this.passwordHash = passwordHash;
         this.email = email;
+        this.passwordHash = passwordHash;
+        this.lastLogin = lastLogin;
+        this.failedLogins = failedLogins;
+        this.lockUntil = lockUntil;
     }
 
     public User(String username, String email, String password) {

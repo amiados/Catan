@@ -1,6 +1,7 @@
 package Server;
 
 import Model.dao.*;
+import Model.obj.Group;
 import Model.obj.User;
 import Security.PasswordHasher;
 import Utils.EmailSender;
@@ -33,6 +34,8 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     private final InviteDAO inviteDAO;
     private final GameDAO gameDAO;
     private final PlayerDAO playerDAO;
+    private final GroupDAO groupDAO;
+    private final GroupMemberDAO groupMemberDAO;
 
     private final Map<UUID, Map<UUID, StreamObserver<Catan.Message>>> subscribers = new ConcurrentHashMap<>();
 
@@ -41,7 +44,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     private OTPManager otpManager = new OTPManager();
 
     public CatanServiceImpl(Cache<String, OTP_Entry> otpCache, Cache<String, User> pendingRegistrations, Cache<String, User> pendingUsers,
-                            UserDAO userDAO, MessageDAO messageDAO, InviteDAO inviteDAO, GameDAO gameDAO, PlayerDAO playerDAO) {
+                            UserDAO userDAO, MessageDAO messageDAO, InviteDAO inviteDAO, GameDAO gameDAO, PlayerDAO playerDAO, GroupDAO groupDAO, GroupMemberDAO groupMemberDAO) {
         this.otpCache = otpCache;
         this.pendingRegistrations = pendingRegistrations;
         this.pendingUsers = pendingUsers;
@@ -50,6 +53,8 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
         this.inviteDAO = inviteDAO;
         this.gameDAO = gameDAO;
         this.playerDAO = playerDAO;
+        this.groupDAO = groupDAO;
+        this.groupMemberDAO = groupMemberDAO;
     }
 
     @Override
@@ -315,6 +320,130 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     }
 
     @Override
+    public void getAllGroups(Catan.UserRequest request, StreamObserver<Catan.AllGroupsResponse> responseObserver) {
+        UUID userId;
+        try {
+            userId = UUID.fromString(request.getUserId());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onNext(Catan.AllGroupsResponse.newBuilder()
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+        try {
+            List<Group> groups = groupDAO.getGroupsForUser(userId);
+            Catan.AllGroupsResponse.Builder builder = Catan.AllGroupsResponse.newBuilder();
+
+            for (Group group : groups) {
+                String creatorUsername = userDAO.getUserById(group.getCreatorId()).getUsername();
+
+                builder.addGroups(Catan.GroupInfo.newBuilder()
+                        .setGroupId(group.getGroupId().toString())
+                        .setGroupName(group.getGroupName())
+                        .setCreatorUsername(creatorUsername)
+                        .build());
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("שגיאה בשליפת קבוצות")
+                    .withCause(e)
+                    .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void createGroup(Catan.CreateGroupRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
+        UUID creatorId;
+        try {
+            creatorId = UUID.fromString(request.getCreatorId());
+        } catch (IllegalArgumentException ex) {
+            responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Invalid UUID format for creatorId")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        String groupName = request.getGroupName();
+
+        // בדיקת תקינות השם
+        if (groupName == null || groupName.isBlank()) {
+            responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Group name cannot be empty")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+
+        try {
+            User creator = userDAO.getUserById(creatorId);
+            if (creator == null) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Invalid UUID format for creatorId")
+                        .build()
+                );
+                responseObserver.onCompleted();
+                return;
+            }
+
+            UUID groupId = UUID.randomUUID();
+            Group group = new Group(groupId, Instant.now(), creatorId, groupName);
+
+            if (!groupDAO.createGroup(group)) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Failed to create group")
+                        .build()
+                );
+            } else {
+                groupMemberDAO.addMemberToGroup(groupId, creatorId, "ADMIN");
+
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(true)
+                        .setMessage("Group created successfully")
+                        .setGroupId(groupId.toString())
+                        .build());
+            }
+
+            responseObserver.onCompleted();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Database error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void inviteToGroup(Catan.InviteToGroupRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
+//        UUID groupId;
+//        try {
+//            groupId = UUID.fromString(request.getGroupId());
+//        }
+    }
+    @Override
+    public void getGamePlayers(Catan.GameActionRequest request, StreamObserver<Catan.GamePlayersResponse> responseObserver) {
+        super.getGamePlayers(request, responseObserver);
+    }
+
+    @Override
+    public void updatePlayerColor(Catan.UpdateColorRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.updatePlayerColor(request, responseObserver);
+    }
+
+    @Override
+    public void startTurn(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
+        super.startTurn(request, responseObserver);
+    }
+
+    @Override
     public void buildRoad(Catan.BuildRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
         super.buildRoad(request, responseObserver);
     }
@@ -327,11 +456,6 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     @Override
     public void buyDevelopmentCard(Catan.BuyDevCardRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
         super.buyDevelopmentCard(request, responseObserver);
-    }
-
-    @Override
-    public void createGroup(Catan.CreateGroupRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
-        super.createGroup(request, responseObserver);
     }
 
     @Override
@@ -349,19 +473,10 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
         super.endTurn(request, responseObserver);
     }
 
-    @Override
-    public void getAllGroups(Catan.UserRequest request, StreamObserver<Catan.AllGroupsResponse> responseObserver) {
-        super.getAllGroups(request, responseObserver);
-    }
 
     @Override
     public void getPlayerInfo(Catan.PlayerInfoRequest request, StreamObserver<Catan.PlayerInfoResponse> responseObserver) {
         super.getPlayerInfo(request, responseObserver);
-    }
-
-    @Override
-    public void inviteToGroup(Catan.InviteToGroupRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
-        super.inviteToGroup(request, responseObserver);
     }
 
     @Override

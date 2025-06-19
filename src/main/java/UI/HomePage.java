@@ -26,7 +26,8 @@ public class HomePage extends Application {
     private final AuthServiceClient authClient;
     private ListView<String> roomsList;
     private Timeline roomRefresher;
-    private MediaPlayer mediaPlayer;
+    private MediaPlayer backgroundMusicPlayer;
+    private MediaPlayer backgroundVideoPlayer;
     private final String userId;
 
     public HomePage(String userId, AuthServiceClient authClient) {
@@ -39,7 +40,13 @@ public class HomePage extends Application {
         StackPane root = new StackPane();
 
         // רקע מים מונפש (GIF או MP4)
-        ImageView background = new ImageView(new Image(getClass().getResource("/Utils/water_background.gif").toExternalForm()));
+        Media video = new Media(getClass().getResource("/Utils/water_background.mp4").toExternalForm());
+        backgroundVideoPlayer = new MediaPlayer(video);
+        backgroundVideoPlayer.setAutoPlay(true);
+        backgroundVideoPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+        backgroundVideoPlayer.setMute(true); // לא שומעים את הוידאו
+
+        MediaView background = new MediaView(backgroundVideoPlayer);
         background.setFitWidth(800);
         background.setFitHeight(600);
         background.setPreserveRatio(false);
@@ -80,9 +87,9 @@ public class HomePage extends Application {
         // כפתור להשתקת מוזיקה
         Button muteBtn = styledButton("🔇 Mute");
         muteBtn.setOnAction(e -> {
-            if (mediaPlayer != null) {
-                mediaPlayer.setMute(!mediaPlayer.isMute());
-                muteBtn.setText(mediaPlayer.isMute() ? "🔊 Unmute" : "🔇 Mute");
+            if (backgroundMusicPlayer != null) {
+                backgroundMusicPlayer.setMute(!backgroundMusicPlayer.isMute());
+                muteBtn.setText(backgroundMusicPlayer.isMute() ? "🔊 Unmute" : "🔇 Mute");
             }
         });
 
@@ -141,11 +148,11 @@ public class HomePage extends Application {
 
     private void playMusic() {
         try {
-            Media media = new Media(new File("Utils/drums_of_liberations.mp3").toURI().toString());
-            mediaPlayer = new MediaPlayer(media);
-            mediaPlayer.setCycleCount(MediaPlayer.INDEFINITE);
-            mediaPlayer.setVolume(0.4);
-            mediaPlayer.play();
+            Media media = new Media(new File("Utils/drums_of_liberation.mp3").toURI().toString());
+            backgroundMusicPlayer = new MediaPlayer(media);
+            backgroundMusicPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+            backgroundMusicPlayer.setVolume(0.4);
+            backgroundMusicPlayer.play();
         } catch (Exception e) {
             System.out.println("⚠️ Failed to load background music");
         }

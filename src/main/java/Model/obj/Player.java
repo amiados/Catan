@@ -5,10 +5,12 @@ import catan.*;
 import java.util.*;
 
 public class Player extends User {
-    private final UUID playerId;
     // Public data;
+    private final UUID playerId;
+    private final UUID userId;
     private PieceColor pieceColor;
     private boolean isTurn;
+
     // Resources in hand
     private Map<ResourceType, Integer> hand = new EnumMap<>(ResourceType.class);
 
@@ -41,6 +43,7 @@ public class Player extends User {
     public Player(UUID playerId, User user, PieceColor color) {
         super(user.getUsername(), user.getEmail(), user.getPasswordHash());
         this.playerId = playerId;
+        this.userId = user.getId();
         this.pieceColor = color;
 
         for (ResourceType type : ResourceType.values()) {
@@ -77,6 +80,9 @@ public class Player extends User {
     public Set<Edge> getRoads() {
         return roads;
     }
+    public UUID getUserId() {
+        return userId;
+    }
 
     // ===== Resource Management =====
     public void addResource(ResourceType type, int amount) {
@@ -84,7 +90,7 @@ public class Player extends User {
     }
     public boolean removeResource(ResourceType type, int amount) {
         int current = hand.getOrDefault(type, 0);
-        if(current > amount)
+        if(current < amount)
             return false;
         hand.put(type, current - amount);
         return true;
@@ -125,9 +131,18 @@ public class Player extends User {
     }
 
     // ===== Turn Logic =====
+    public boolean isTurn() {
+        return isTurn;
+    }
+    public void setTurn(boolean isTurn) {
+        this.isTurn = isTurn;
+    }
     public void startTurn() {
         playedDevelopmentCardThisTurn = false;
         promoteNewDevelopmentCards();
+    }
+    public void endTurn() {
+        this.isTurn = false;
     }
     public boolean hadPlayedDevelopmentCardThisTurn() {
         return playedDevelopmentCardThisTurn;
@@ -173,7 +188,7 @@ public class Player extends User {
         return points + bonusVictoryPoints;
 
     }
-    protected int getVictoryPointsForOthers() {
+    public int getVictoryPointsForOthers() {
         int points = settlements.size() + (cities.size() * 2);
 
         if (hasLargestArmy)
@@ -185,7 +200,7 @@ public class Player extends User {
         return points;
 
     }
-    protected int getBonusVictoryPoints() {
+    public int getBonusVictoryPoints() {
         return bonusVictoryPoints;
     }
     private void addBonusVictoryPoint() {
@@ -199,13 +214,13 @@ public class Player extends User {
     public void incrementArmySize() {
         armySize++;
     }
-    protected int getRoadLength() {
+    public int getRoadLength() {
         return longestRoad;
     }
-    protected boolean hasLargestArmy() {
+    public boolean hasLargestArmy() {
         return hasLargestArmy;
     }
-    protected boolean hasLongestRoad() {
+    public boolean hasLongestRoad() {
         return hasLongestRoad;
     }
 }

@@ -30,6 +30,8 @@ public class CatanServer {
             InviteDAO inviteDAO = new InviteDAO();
             GameDAO gameDAO = new GameDAO();
             PlayerDAO playerDAO = new PlayerDAO();
+            GroupDAO groupDAO = new GroupDAO();
+            GroupMemberDAO groupMemberDAO = new GroupMemberDAO();
 
             CatanServiceImpl service = new CatanServiceImpl(
                     otpCache,
@@ -39,7 +41,9 @@ public class CatanServer {
                     messageDAO,
                     inviteDAO,
                     gameDAO,
-                    playerDAO
+                    playerDAO,
+                    groupDAO,
+                    groupMemberDAO
             );
 
             // יצירת שרת על פורט 9090

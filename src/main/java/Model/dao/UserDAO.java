@@ -159,15 +159,13 @@ public class UserDAO {
     }
 
     public List<Group> getAllGroups(UUID userId) throws SQLException{
+        List<Group> result = new ArrayList<>();
+
         String sql = """
-            SELECT g.GroupId, g.GroupName, u.Username
+            SELECT g.GroupId, g.GroupName, g.CreatorId, g.CreatedAt
             FROM Groups g
-            JOIN Users u ON g.CreatorId = u.Id
-            WHERE g.GroupId IN (
-                SELECT GroupId
-                FROM GroupMembers
-                WHERE UserId = ?
-            )
+            JOIN GroupMembers gm ON g.GroupId = gm.GroupId
+            WHERE gm.UserId = ?
         """;
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -175,9 +173,67 @@ public class UserDAO {
 
             stmt.setString(1, userId.toString());
             try (ResultSet rs = stmt.executeQuery()) {
-                rs.next()
+                while (rs.next()) {
+                    UUID groupId = UUID.fromString(rs.getString("GroupId"));
+                    Instant createdAt = rs.getTimestamp("CreatedAt").toInstant();
+                    UUID creatorId = UUID.fromString(rs.getString("CreatorId"));
+                    String groupName = rs.getString("GroupName");
+
+                    Group group = new Group(groupId, createdAt, creatorId, groupName);
+                    result.add(group);
+                }
             }
         }
+        return  result;
+    }
+
+    public boolean deleteUser(UUID userId) throws SQLException {
+        String sql = "DELETE FROM Users WHERE Id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, userId.toString());
+            return stmt.executeUpdate() > 0;
+        }
+    }
+
+    public List<User> getAllUsers() throws SQLException {
+        List<User> users = new ArrayList<>();
+        String sql = "SELECT * FROM Users";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                users.add(mapUser(rs));
+            }
+        }
+
+        return users;
+    }
+
+    public List<User> getUsersInGroup(UUID groupId) throws SQLException {
+        List<User> users = new ArrayList<>();
+        String sql = """
+            SELECT u.*
+            FROM Users u
+            JOIN GroupMembers gm ON u.Id = gm.UserId
+            WHERE gm.GroupId = ?
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, groupId.toString());
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    users.add(mapUser(rs));
+                }
+            }
+        }
+
+        return users;
     }
 
     /**
@@ -187,18 +243,15 @@ public class UserDAO {
      * @throws SQLException אם מתרחשת שגיאה בגישה לנתונים.
      */
     public User mapUser(ResultSet rs) throws SQLException {
-        String idString = rs.getString("Id");
-        UUID id = idString != null ? UUID.fromString(idString) : null;
+        UUID id = UUID.fromString(rs.getString("Id"));
         String username = rs.getString("Username");
         String email = rs.getString("Email");
         String passwordHash = rs.getString("PasswordHash");
-        Timestamp lastLoginTs = rs.getTimestamp("LastLogin");
-        Instant lastLogin = lastLoginTs != null ? lastLoginTs.toInstant() : null;
-        int failedLogins = rs.getInt("failed_logins");
-        Timestamp lockTs = rs.getTimestamp("lock_until");
-        Instant lockUntil = lockTs != null ? lockTs.toInstant() : null;
+        Instant lastLogin = rs.getTimestamp("LastLogin") != null ? rs.getTimestamp("LastLogin").toInstant() : null;
+        int failedLogins = rs.getInt("FailedLogins");
+        Instant lockUntil = rs.getTimestamp("LockUntil") != null ? rs.getTimestamp("LockUntil").toInstant() : null;
 
-        User user = new User(id, username, email, passwordHash);
+        User user = new User(id, username, email, passwordHash, lastLogin, failedLogins, lockUntil);
         user.setLastLogin(lastLogin);
         user.setFailedLogins(failedLogins);
         user.setLockUntil(lockUntil);

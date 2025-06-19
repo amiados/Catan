@@ -4,11 +4,11 @@ import java.time.Instant;
 import java.util.UUID;
 
 public class Message {
-    private UUID id;
-    private UUID gameId;
-    private UUID senderId;
-    private byte[] content;
-    private Instant sentAt;
+    private final UUID id;
+    private final UUID gameId;
+    private final UUID senderId;
+    private final byte[] content;
+    private final Instant sentAt;
 
     public Message(UUID id, UUID gameId, UUID senderId, byte[] content, Instant sentAt) {
         this.id = id;
@@ -33,9 +33,5 @@ public class Message {
     }
     public Instant getSentAt() {
         return sentAt;
-    }
-
-    public void setContent(byte[] content) {
-        this.content = content;
     }
 }

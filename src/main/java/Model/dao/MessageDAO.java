@@ -45,13 +45,12 @@ public class MessageDAO {
      * @return a list of Messages ordered by SentAt descending.
      * @throws SQLException if a database access error occurs.
      */
-    public ArrayList<Message> getMessagesByGשצקId(UUID gameId, int limit, int offset) throws SQLException {
+    public ArrayList<Message> getMessagesById(UUID gameId, int limit, int offset) throws SQLException {
         String sql = """
-        SELECT M.*
-        FROM Messages M
-        WHERE M.GameId = ?
-        ORDER BY SentAt DESC
-        OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+        SELECT * FROM Messages
+            WHERE GameId = ?
+            ORDER BY SentAt DESC, MessageId
+            OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
         """;
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -77,13 +76,12 @@ public class MessageDAO {
      */
     private Message mapResultSetToMessage(ResultSet rs) throws SQLException {
         return new Message(
-                UUID.fromString(rs.getString("Id")),
+                UUID.fromString(rs.getString("MessageId")),
                 UUID.fromString(rs.getString("GameId")),
                 UUID.fromString(rs.getString("SenderId")),
                 rs.getBytes("Content"),
                 rs.getTimestamp("SentAt").toInstant()
         );
     }
-
 
 }
