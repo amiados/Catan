@@ -1,7 +1,7 @@
-package Model.dao;
+package Model.DAO;
 
 import Model.InviteStatus;
-import Model.obj.Invite;
+import Model.OBJ.Invite;
 import Utils.DatabaseConnection;
 
 import java.sql.*;
@@ -14,7 +14,7 @@ public class InviteDAO {
 
     public boolean createInvite(Invite invite) throws SQLException {
         String sql = """
-            INSERT INTO GameInvites
+            INSERT INTO GroupInvites
             (InviteId, GroupId, FromUserId, ToUserId, Status, CreatedAt)
             VALUES (?, ?, ?, ?, ?, ?)
         """;
@@ -34,7 +34,7 @@ public class InviteDAO {
 
     public Invite getInvite(UUID groupId, UUID receiverId) throws SQLException {
         String sql = """
-            SELECT * FROM GameInvites 
+            SELECT * FROM GroupInvites 
             WHERE GroupId = ? AND ToUserId = ? AND Status = 'PENDING'
         """;
         try (Connection conn = DatabaseConnection.getConnection();
@@ -64,7 +64,7 @@ public class InviteDAO {
 
     public List<Invite> getSentInvitesByUser(UUID userId) throws SQLException {
         String sql = """
-        SELECT * FROM GameInvites
+        SELECT * FROM GroupInvites
         WHERE FromUserId = ?
     """;
         ArrayList<Invite> invites = new ArrayList<>();
@@ -82,7 +82,7 @@ public class InviteDAO {
 
     public List<Invite> getUserPendingInvites(UUID userId) throws SQLException {
         String sql = """
-            SELECT * FROM GameInvites
+            SELECT * FROM GroupInvites
             WHERE ToUserId = ? AND Status = 'PENDING'
         """;
         ArrayList<Invite> invites = new ArrayList<>();
@@ -101,7 +101,7 @@ public class InviteDAO {
 
     public boolean updateInviteStatus(UUID inviteId, InviteStatus newStatus) throws SQLException {
         String sql = """
-            UPDATE GameInvites 
+            UPDATE GroupInvites 
             SET Status = ? 
             WHERE InviteId = ?
         """;
@@ -116,7 +116,7 @@ public class InviteDAO {
 
     public int expireOldPendingInvites(Instant cutoff) throws SQLException {
         String sql = """
-            UPDATE GameInvites
+            UPDATE GroupInvites
             SET Status = 'EXPIRED'
             WHERE Status = 'PENDING' AND CreatedAt < ?
         """;
@@ -140,7 +140,7 @@ public class InviteDAO {
     }
 
     public boolean deleteInvite(UUID inviteId) throws SQLException {
-        String sql = "DELETE FROM GameInvites WHERE InviteId = ?";
+        String sql = "DELETE FROM GroupInvites WHERE InviteId = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -148,4 +148,5 @@ public class InviteDAO {
             return stmt.executeUpdate() > 0;
         }
     }
+
 }

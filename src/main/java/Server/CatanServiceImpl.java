@@ -1,8 +1,9 @@
 package Server;
 
-import Model.dao.*;
-import Model.obj.Group;
-import Model.obj.User;
+import Model.InviteStatus;
+import Model.MemberRole;
+import Model.DAO.*;
+import Model.OBJ.*;
 import Security.PasswordHasher;
 import Utils.EmailSender;
 import Utils.OTPManager;
@@ -11,6 +12,7 @@ import Utils.ValidationResult;
 import catan.Catan;
 import catan.CatanServiceGrpc;
 import com.google.common.cache.Cache;
+import io.grpc.Context;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -19,15 +21,15 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
 
     private final Cache<String, OTP_Entry> otpCache;
     private final Cache<String, User> pendingRegistrations;
-    private final Cache<String, User> pendingUsers;
+    private final Cache<String, User> pendingLogin;
 
     private final UserDAO userDAO;
     private final MessageDAO messageDAO;
@@ -37,17 +39,20 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     private final GroupDAO groupDAO;
     private final GroupMemberDAO groupMemberDAO;
 
-    private final Map<UUID, Map<UUID, StreamObserver<Catan.Message>>> subscribers = new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, ConcurrentMap<UUID, StreamObserver<Catan.GroupChatMessage>>> groupSubs =
+            new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, ConcurrentMap<UUID, StreamObserver<Catan.GameChatMessage>>> gameSubs =
+            new ConcurrentHashMap<>();
 
     private static final int MAX_FAILED_ATTEMPTS = 3;
     private static final int LOCK_DURATION_MINUTES = 10;
-    private OTPManager otpManager = new OTPManager();
+    private final OTPManager otpManager = new OTPManager();
 
     public CatanServiceImpl(Cache<String, OTP_Entry> otpCache, Cache<String, User> pendingRegistrations, Cache<String, User> pendingUsers,
                             UserDAO userDAO, MessageDAO messageDAO, InviteDAO inviteDAO, GameDAO gameDAO, PlayerDAO playerDAO, GroupDAO groupDAO, GroupMemberDAO groupMemberDAO) {
         this.otpCache = otpCache;
         this.pendingRegistrations = pendingRegistrations;
-        this.pendingUsers = pendingUsers;
+        this.pendingLogin = pendingUsers;
         this.userDAO = userDAO;
         this.messageDAO = messageDAO;
         this.inviteDAO = inviteDAO;
@@ -189,7 +194,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
             }
 
             otpCache.put(email, new OTP_Entry(email, otp));
-            pendingRegistrations.put(email, user);
+            pendingLogin.put(email, user);
 
             respondConnection(responseObserver, true,
                     "OTP sent to your email",
@@ -213,22 +218,30 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
 
     @Override
     public void verifyLoginOtp(Catan.VerifyOtpRequest request, StreamObserver<Catan.ConnectionResponse> responseObserver) {
-        verifyOtp(request, responseObserver, pendingUsers, false);
+        verifyOtp(request, responseObserver, pendingLogin, false);
     }
 
     private void verifyOtp(Catan.VerifyOtpRequest request, StreamObserver<Catan.ConnectionResponse>responseObserver, Cache <String, User> userCache, boolean isRegistration) {
         String email = request.getEmail();
         String otp = request.getOtp();
 
-        OTP_Entry entry = otpCache.getIfPresent(email);
         User user = userCache.getIfPresent(email);
+        if (user == null) {
+            responseObserver.onError(
+                    Status.NOT_FOUND
+                            .withDescription("User not found with email: " + email)
+                            .asRuntimeException()
+            );
+            return;
+        }
 
-        if (entry == null || user == null || !entry.isValid(otp)) {
+        OTP_Entry entry = otpCache.getIfPresent(email);
+        if (entry == null || !entry.isValid(otp)) {
             respondConnection(responseObserver, false,
                     "Invalid or expired OTP",
-                    user.getUsername(),
                     null,
-                    user.getId().toString());
+                    null,
+                    null);
             return;
         }
 
@@ -297,7 +310,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                         .addErrors("User not found")
                         .setMessage("No user with this email.");
             } else {
-                pendingUsers.put(email, existingUser); // שומר את המשתמש בזיכרון זמני
+                pendingLogin.put(email, existingUser); // שומר את המשתמש בזיכרון זמני
                 boolean otpSent = otpManager.requestOTP(email);
                 if (otpSent) {
                     response.setSuccess(true)
@@ -370,7 +383,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
         String groupName = request.getGroupName();
 
         // בדיקת תקינות השם
-        if (groupName == null || groupName.isBlank()) {
+        if (groupName.isBlank()) {
             responseObserver.onNext(Catan.GroupResponse.newBuilder()
                     .setSuccess(false)
                     .setMessage("Group name cannot be empty")
@@ -402,7 +415,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                         .build()
                 );
             } else {
-                groupMemberDAO.addMemberToGroup(groupId, creatorId, "ADMIN");
+                groupMemberDAO.addMemberToGroup(groupId, creatorId, MemberRole.ADMIN);
 
                 responseObserver.onNext(Catan.GroupResponse.newBuilder()
                         .setSuccess(true)
@@ -422,15 +435,331 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     }
 
     @Override
-    public void inviteToGroup(Catan.InviteToGroupRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
-//        UUID groupId;
-//        try {
-//            groupId = UUID.fromString(request.getGroupId());
-//        }
+    public void inviteToGroup(Catan.InviteRequest request, StreamObserver<Catan.GroupResponse> responseObserver) {
+        UUID inviteId, groupId, senderId, receiverId;
+        // === בדיקות תקינות של מזהי UUID ===
+        try {
+            inviteId = UUID.fromString(request.getInviteId());
+            groupId = UUID.fromString(request.getGroupId());
+            senderId = UUID.fromString(request.getSenderId());
+            receiverId = UUID.fromString(request.getReceiverId());
+        } catch (IllegalArgumentException ex) {
+            responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Invalid UUID format: " + ex.getMessage())
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        if (senderId.equals(receiverId)) {
+            responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Cannot invite yourself to a group")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        try {
+            // === בדיקת קיום קבוצה ===
+            Group group = groupDAO.getGroupById(groupId);
+            if (group == null) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Group does not exist")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            // === בדיקת קיום משתמשים ===
+            User sender = userDAO.getUserById(senderId);
+            if (sender == null) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Sender does not exist")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            User receiver = userDAO.getUserById(receiverId);
+            if (receiver == null) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Receiver does not exist")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            // === בדיקה האם השולח חבר בקבוצה או בעל הרשאה ===
+            if (groupMemberDAO.isUserInGroup(groupId, senderId)) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("You are not a member of this group")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            // === בדיקה אם כבר קיימת הזמנה פעילה ===
+            Invite existingInvite = inviteDAO.getInvite(groupId, receiverId);
+            if (existingInvite != null && existingInvite.getStatus() == InviteStatus.PENDING) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("A pending invite already exists")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            Instant timestamp = Instant.now();
+            Invite newInvite = new Invite(inviteId, groupId, senderId, receiverId, InviteStatus.PENDING, timestamp);
+            inviteDAO.createInvite(newInvite);
+
+            responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                    .setSuccess(true)
+                    .setMessage("Invite sent successfully")
+                    .setGroupId(groupId.toString())
+                    .build());
+            responseObserver.onCompleted();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Database error: " + e.getMessage())
+                    .asRuntimeException());
+        }
     }
+
+    @Override
+    public void respondToGroupInvitation(Catan.InviteResponse request, StreamObserver<Catan.GroupResponse> responseObserver) {
+        UUID inviteId, groupId, senderId, receiverId;
+        try {
+            inviteId = UUID.fromString(request.getInviteId());
+            groupId = UUID.fromString(request.getGroupId());
+            senderId = UUID.fromString(request.getSenderId());
+            receiverId = UUID.fromString(request.getReceiverId());
+        } catch (IllegalArgumentException ex) {
+            responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Invalid UUID format: " + ex.getMessage())
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        try {
+            // בדוק שההזמנה קיימת
+            Invite invite = inviteDAO.getInviteById(inviteId);
+            if (invite == null) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Invite does not exist")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            // בדוק שההזמנה היא למשתמש המבצע
+            if (!invite.getReceiverId().equals(receiverId)) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("You are not the intended recipient of this invite")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            if (!invite.getSenderId().equals(senderId) ||
+                    !groupMemberDAO.isUserInGroup(groupId, senderId) ||
+                    groupMemberDAO.getUserRole(groupId, senderId) != MemberRole.ADMIN) {
+                responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("You are not the intended recipient of this invite")
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            // עדכן סטטוס במסד
+            InviteStatus newStatus = InviteStatus.valueOf(request.getStatus().name());
+            inviteDAO.updateInviteStatus(inviteId, newStatus);
+
+            // אם ההזמנה התקבלה, הוסף את המשתמש לקבוצה
+            if (newStatus == InviteStatus.ACCEPTED) {
+                groupMemberDAO.addMemberToGroup(groupId, receiverId, MemberRole.MEMBER);
+            }
+
+            responseObserver.onNext(Catan.GroupResponse.newBuilder()
+                    .setSuccess(true)
+                    .setMessage("Invite response processed")
+                    .setGroupId(groupId.toString())
+                    .build());
+            responseObserver.onCompleted();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Database error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void getUserInvites(Catan.UserRequest request, StreamObserver<Catan.InviteListResponse> responseObserver) {
+        UUID userId;
+        try {
+            userId = UUID.fromString(request.getUserId());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid UUID format for userId")
+                    .asRuntimeException());
+            return;
+        }
+
+        try {
+            if (userDAO.getUserById(userId) == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("User not found")
+                        .asRuntimeException());
+                return;
+            }
+
+            List<Invite> invites = inviteDAO.getUserPendingInvites(userId);
+            Catan.InviteListResponse.Builder responseBuilder = Catan.InviteListResponse.newBuilder();
+
+            for (Invite invite : invites) {
+                responseBuilder.addInvites(Catan.ProtoInvite.newBuilder()
+                        .setInviteId(invite.getId().toString())
+                        .setGroupId(invite.getGroupId().toString())
+                        .setSenderId(invite.getSenderId().toString())
+                        .setInvitedUserId(invite.getReceiverId().toString())
+                        .setTimestamp(invite.getSentAt().toEpochMilli())
+                        .setStatus(Catan.InviteResponseStatus.valueOf(invite.getStatus().name()))
+                        .build());
+            }
+
+            responseObserver.onNext(responseBuilder.build());
+            responseObserver.onCompleted();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Database error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void listGroupGames(Catan.GroupRequest request, StreamObserver<Catan.GameListResponse> responseObserver) {
+        // 1. Parse and validate the incoming groupId
+        UUID groupId;
+        try {
+            groupId = UUID.fromString(request.getGroupId());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid UUID format for groupId")
+                    .asRuntimeException());
+            return;
+        }
+
+        try {
+            // 2. Verify that the group actually exists
+            Group group = groupDAO.getGroupById(groupId);
+            if (group == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Group not found: " + groupId)
+                        .asRuntimeException()
+                );
+                return;
+            }
+
+            // 3. Fetch all games for this group
+            List<Game> games = gameDAO.getGamesByGroupId(groupId);
+
+            // 4. Build the response listing just the game IDs
+            Catan.GameListResponse.Builder respond = Catan.GameListResponse.newBuilder();
+            for (Game game : games) {
+                respond.addGameIds(game.getGameId().toString());
+            }
+
+            // 5. Send back and complete
+            responseObserver.onNext(respond.build());
+            responseObserver.onCompleted();
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB error: " + e.getMessage())
+                    .asRuntimeException()
+            );
+        }
+    }
+
     @Override
     public void getGamePlayers(Catan.GameActionRequest request, StreamObserver<Catan.GamePlayersResponse> responseObserver) {
-        super.getGamePlayers(request, responseObserver);
+        UUID gameId, userId;
+        try {
+            gameId = UUID.fromString(request.getGameId());
+            userId = UUID.fromString(request.getUserId());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid UUID format for: " + e.getMessage())
+                    .asRuntimeException()
+            );
+            return;
+        }
+
+        try {
+            User user = userDAO.getUserById(userId);
+            if (user == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("User not found: " + userId)
+                        .asRuntimeException()
+                );
+                return;
+            }
+            Game game = gameDAO.getGameById(gameId);
+            if (game == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Game not found: " + gameId)
+                        .asRuntimeException()
+                );
+                return;
+            }
+
+            List<Game> gameList = gameDAO.getGamesByUserId(userId);
+
+            boolean isInGame = gameList.contains(game);
+            if (!isInGame) {
+                responseObserver.onError(Status.PERMISSION_DENIED
+                        .withDescription("You are not a participant in this game")
+                        .asRuntimeException());
+                return;
+            }
+
+            List<Player> players = playerDAO.getPlayersByGame(gameId);
+            Catan.GamePlayersResponse.Builder respond = Catan.GamePlayersResponse.newBuilder();
+            for (Player player : players) {
+                respond.addPlayers(Catan.PlayerProto.newBuilder()
+                        .setPlayerId(player.getPlayerId().toString())
+                        .setUsername(player.getUsername())
+                        .setColor(player.getPieceColor().name())
+                        .setIsTurn(player.isTurn())
+                        .build()
+                );
+            }
+
+            responseObserver.onNext(respond.build());
+            responseObserver.onCompleted();
+
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB error: " + e.getMessage())
+                    .asRuntimeException()
+            );
+        }
     }
 
     @Override
@@ -473,7 +802,6 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
         super.endTurn(request, responseObserver);
     }
 
-
     @Override
     public void getPlayerInfo(Catan.PlayerInfoRequest request, StreamObserver<Catan.PlayerInfoResponse> responseObserver) {
         super.getPlayerInfo(request, responseObserver);
@@ -515,11 +843,6 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     }
 
     @Override
-    public void respondToGroupInvitation(Catan.GroupInviteResponse request, StreamObserver<Catan.GroupResponse> responseObserver) {
-        super.respondToGroupInvitation(request, responseObserver);
-    }
-
-    @Override
     public void respondToTrade(Catan.TradeResponse request, StreamObserver<Catan.TradeResult> responseObserver) {
         super.respondToTrade(request, responseObserver);
     }
@@ -535,11 +858,6 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     }
 
     @Override
-    public void sendMessage(Catan.Message request, StreamObserver<Catan.ACK> responseObserver) {
-        super.sendMessage(request, responseObserver);
-    }
-
-    @Override
     public void startGame(Catan.GameActionRequest request, StreamObserver<Catan.GameResponse> responseObserver) {
         super.startGame(request, responseObserver);
     }
@@ -550,11 +868,6 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     }
 
     @Override
-    public void subscribeMessages(Catan.ChatSubscribeRequest request, StreamObserver<Catan.Message> responseObserver) {
-        super.subscribeMessages(request, responseObserver);
-    }
-
-    @Override
     public void subscribeToGameEvents(Catan.GameSubscribeRequest request, StreamObserver<Catan.GameEvent> responseObserver) {
         super.subscribeToGameEvents(request, responseObserver);
     }
@@ -562,6 +875,177 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     @Override
     public void tradeRequest(Catan.TradeRequest request, StreamObserver<Catan.TradeResponse> responseObserver) {
         super.tradeRequest(request, responseObserver);
+    }
+
+    @Override
+    public void sendGroupMessage(Catan.GroupChatMessage request, StreamObserver<Catan.ACK> responseObserver) {
+        UUID groupId, senderId;
+        try {
+            groupId = UUID.fromString(request.getGroupId());
+            senderId = UUID.fromString(request.getFromUserId());
+        } catch (IllegalArgumentException ex) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid UUID: " + ex.getMessage())
+                    .asRuntimeException());
+            return;
+        }
+        GroupMessage msg = new GroupMessage(
+                UUID.randomUUID(),
+                groupId,
+                senderId,
+                request.getContent().toByteArray(),
+                Instant.ofEpochMilli(request.getTimestamp())
+        );
+        try {
+            messageDAO.saveGroupMessage(msg);
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+
+        // דחיפת ההודעה לכולם
+        // Push message to all subscribers (excluding sender if you want)
+        ConcurrentMap<UUID, StreamObserver<Catan.GroupChatMessage>> groupMap = groupSubs.get(groupId);
+        if (groupMap != null) {
+            groupMap.forEach((uid, obs) -> {
+                try {
+                    obs.onNext(request);
+                } catch (Exception e) {
+                    // Optionally: remove failing subscriber
+                }
+            });
+        }
+        // אישור שולח
+        responseObserver.onNext(Catan.ACK.newBuilder().setReceived(true).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void subscribeGroupMessages(Catan.GroupSubscribeRequest req,
+                                       StreamObserver<Catan.GroupChatMessage> obs) {
+        UUID groupId, userId;
+        try {
+            groupId = UUID.fromString(req.getGroupId());
+            userId  = UUID.fromString(req.getUserId());
+        } catch (IllegalArgumentException ex) {
+            obs.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid UUID: " + ex.getMessage())
+                    .asRuntimeException());
+            return;
+        }
+        try {
+            // כאן צריך לבדוק שהמשתמש חבר בקבוצה; לדוגמה:
+            if (!groupMemberDAO.isUserInGroup(groupId, userId)) {
+                obs.onError(Status.PERMISSION_DENIED
+                        .withDescription("User " + userId + " is not a member of group " + groupId)
+                        .asRuntimeException());
+                return;
+            }
+
+            groupSubs
+                    .computeIfAbsent(groupId, id -> new ConcurrentHashMap<>())
+                    .put(userId, obs);
+
+            // הסרת המנוי כשלקוח מתנתק
+            Context.current().addListener(context -> {
+                ConcurrentMap<UUID, StreamObserver<Catan.GroupChatMessage>> m = groupSubs.get(groupId);
+                if (m != null) m.remove(userId);
+            }, Runnable::run);
+        } catch (SQLException e) {
+            obs.onError(Status.INTERNAL
+                    .withDescription("DB error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void sendGameMessage(Catan.GameChatMessage request, StreamObserver<Catan.ACK> responseObserver) {
+        UUID gameId, senderId;
+        try {
+            gameId = UUID.fromString(request.getGameId());
+            senderId = UUID.fromString(request.getFromUserId());
+        } catch (IllegalArgumentException ex) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid UUID: " + ex.getMessage())
+                    .asRuntimeException());
+            return;
+        }
+
+        try {
+            GameMessage msg = new GameMessage(
+                    UUID.randomUUID(),
+                    gameId,
+                    senderId,
+                    request.getContent().toByteArray(),
+                    Instant.ofEpochMilli(request.getTimestamp())
+            );
+
+            messageDAO.saveGameMessage(msg);
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+
+        ConcurrentMap<UUID, StreamObserver<Catan.GameChatMessage>> map = gameSubs.get(gameId);
+        if (map != null) {
+            map.forEach((uid, obs) -> {
+                try {
+                    obs.onNext(request);
+                } catch (Exception e) {
+                    // Optionally: remove
+                }
+            });
+        }
+
+        responseObserver.onNext(Catan.ACK.newBuilder().setReceived(true).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void subscribeGameMessages(Catan.GameSubscribeRequest request,
+                                      StreamObserver<Catan.GameChatMessage> responseObserver) {
+        UUID gameId, userId;
+        try {
+            gameId = UUID.fromString(request.getGameId());
+            userId = UUID.fromString(request.getUserId());
+        } catch (IllegalArgumentException ex) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid UUID: " + ex.getMessage())
+                    .asRuntimeException());
+            return;
+        }
+
+        try {
+            Game game = gameDAO.getGameById(gameId);
+
+            if (game == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Game not found: " + gameId)
+                        .asRuntimeException()
+                );
+                return;
+            }
+
+            if (!gameDAO.getGamesByUserId(userId).contains(game)) {
+                responseObserver.onError(Status.PERMISSION_DENIED
+                        .withDescription("User is not in game")
+                        .asRuntimeException());
+                return;
+            }
+
+            gameSubs.computeIfAbsent(gameId, id -> new ConcurrentHashMap<>()).put(userId, responseObserver);
+
+            Context.current().addListener(ctx -> {
+                ConcurrentMap<UUID, StreamObserver<Catan.GameChatMessage>> m = gameSubs.get(gameId);
+                if (m != null) m.remove(userId);
+            }, Runnable::run);
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB error: " + e.getMessage())
+                    .asRuntimeException());
+        }
     }
 
     private void respondConnection(StreamObserver<Catan.ConnectionResponse> observer,

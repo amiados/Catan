@@ -1,7 +1,7 @@
-package Model.dao;
+package Model.DAO;
 
-import Model.obj.Player;
-import Model.obj.User;
+import Model.OBJ.Player;
+import Model.OBJ.User;
 import Utils.DatabaseConnection;
 import catan.PieceColor;
 

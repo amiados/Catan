@@ -1,4 +1,4 @@
-package Model.obj;
+package Model.OBJ;
 
 import Model.InviteStatus;
 

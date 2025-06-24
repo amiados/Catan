@@ -1,6 +1,6 @@
-package Model.dao;
+package Model.DAO;
 
-import Model.obj.Group;
+import Model.OBJ.Group;
 import Utils.DatabaseConnection;
 
 import java.sql.*;

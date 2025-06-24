@@ -11,12 +11,14 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.AudioClip;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.util.Objects;
 import java.util.concurrent.Executors;
 
 public class OTPVerificationScreen extends Application {
@@ -37,6 +39,8 @@ public class OTPVerificationScreen extends Application {
 
     private Stage currentStage;
 
+    private AudioClip clickSound;
+
     public OTPVerificationScreen(AuthServiceClient authClient, String email, boolean isRegisterMode) {
         this.authClient = authClient;
         this.email = email;
@@ -46,6 +50,11 @@ public class OTPVerificationScreen extends Application {
     @Override
     public void start(Stage stage) {
         this.currentStage = stage;
+
+        clickSound = new AudioClip(
+                Objects.requireNonNull(getClass().getResource("/Utils/mouse_click.mp3")).toExternalForm()
+        );
+        clickSound.setVolume(0.5);
 
         VBox root = new VBox(20);
         root.setPadding(new Insets(40));
@@ -62,11 +71,17 @@ public class OTPVerificationScreen extends Application {
 
         verifyBtn = new Button("Verify OTP");
         styleButton(verifyBtn);
-        verifyBtn.setOnAction(e -> verifyOtp());
+        verifyBtn.setOnAction(e -> {
+            clickSound.play();
+            verifyOtp();
+        });
 
         resendBtn = new Button("Send OTP Again");
         styleButton(resendBtn);
-        resendBtn.setOnAction(e -> resendOtp());
+        resendBtn.setOnAction(e -> {
+            clickSound.play();
+            resendOtp();
+        });
 
         messageLabel = new Label();
         messageLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
@@ -198,4 +213,5 @@ public class OTPVerificationScreen extends Application {
         tt.setAutoReverse(true);
         tt.play();
     }
+
 }

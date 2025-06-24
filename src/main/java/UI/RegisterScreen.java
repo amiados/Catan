@@ -11,17 +11,20 @@ import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
+import javafx.scene.media.AudioClip;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import com.google.common.util.concurrent.ListenableFuture;
 
 public class RegisterScreen extends Application {
 
     private final AuthServiceClient authClient;
+    private AudioClip clickSound;
 
     public RegisterScreen(AuthServiceClient authClient) {
         this.authClient = authClient;
@@ -33,6 +36,11 @@ public class RegisterScreen extends Application {
         root.setPadding(new Insets(40));
         root.setAlignment(Pos.CENTER);
         root.setStyle("-fx-background-color: linear-gradient(to bottom right, #f7e2c3, #d3b18d);");
+
+        clickSound = new AudioClip(
+                Objects.requireNonNull(getClass().getResource("/Utils/mouse_click.mp3")).toExternalForm()
+        );
+        clickSound.setVolume(0.5);
 
         Label title = new Label("Register to Catan Game");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
@@ -61,6 +69,7 @@ public class RegisterScreen extends Application {
         Button registerBtn = new Button("Register");
         styleButton(registerBtn);
         registerBtn.setOnAction(e -> {
+            clickSound.play();
             String username = usernameField.getText().trim();
             String email = emailField.getText().trim();
             String password = passwordField.getText();
@@ -107,6 +116,7 @@ public class RegisterScreen extends Application {
         Hyperlink loginLink = new Hyperlink("Already have an account? Login");
         loginLink.setOnAction(e -> {
             try {
+                clickSound.play();
                 new LoginScreen(authClient).start(new Stage());
                 primaryStage.close();
             } catch (Exception ex) {
@@ -164,4 +174,5 @@ public class RegisterScreen extends Application {
     private void showError(Label label, String message) {
         label.setText(message);
     }
+
 }

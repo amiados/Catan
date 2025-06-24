@@ -2,20 +2,29 @@ syntax = "proto3";
 
 package catan;
 
+enum InviteResponseStatus {
+  ACCEPTED = 0;
+  DECLINED = 1;
+  PENDING = 2;
+  EXPIRED = 3;
+}
+
 service CatanService {
   // הרשמה / כניסה
   rpc register(RegisterRequest) returns (ConnectionResponse);
   rpc login(LoginRequest) returns (ConnectionResponse);
-  rpc sendRegisterOtp (EmailRequest) returns (ConnectionResponse);
-  rpc sendLoginOtp (EmailRequest) returns (ConnectionResponse);
+  rpc sendRegisterOtp(EmailRequest) returns (ConnectionResponse);
+  rpc sendLoginOtp(EmailRequest) returns (ConnectionResponse);
   rpc verifyRegisterOtp(VerifyOtpRequest) returns (ConnectionResponse);
   rpc verifyLoginOtp(VerifyOtpRequest) returns (ConnectionResponse);
 
   // ניהול קבוצות
   rpc getAllGroups(UserRequest) returns (AllGroupsResponse);
   rpc createGroup(CreateGroupRequest) returns (GroupResponse);
-  rpc inviteToGroup(InviteToGroupRequest) returns (GroupResponse);
-  rpc respondToGroupInvitation(GroupInviteResponse) returns (GroupResponse);
+  rpc inviteToGroup(InviteRequest) returns (GroupResponse);
+  rpc respondToGroupInvitation(InviteResponse) returns (GroupResponse);
+  rpc getUserInvites(UserRequest) returns (InviteListResponse);
+  rpc listGroupGames(GroupRequest) returns (GameListResponse);
 
   // ניהול משחק
   rpc startGame(GameActionRequest) returns (GameResponse);
@@ -55,8 +64,11 @@ service CatanService {
   rpc getGamePlayers(GameActionRequest) returns (GamePlayersResponse);
 
   // צ'אט ואירועים
-  rpc sendMessage(Message) returns (ACK);
-  rpc SubscribeMessages(ChatSubscribeRequest) returns (stream Message);
+  rpc sendGroupMessage(GroupChatMessage) returns (ACK);
+  rpc subscribeGroupMessages(GroupSubscribeRequest) returns (stream GroupChatMessage);
+
+  rpc sendGameMessage(GameChatMessage) returns (ACK);                  // כבר קיים כ־sendMessage
+  rpc subscribeGameMessages(GameSubscribeRequest) returns (stream GameChatMessage);
   rpc subscribeToGameEvents(GameSubscribeRequest) returns (stream GameEvent);
 }
 // ========== הרשמה / התחברות ==========
@@ -105,14 +117,36 @@ message GroupResponse {
   string message = 2;
   string groupId = 3;
 }
-message InviteToGroupRequest {
-  string groupId = 1;
-  string invitedUserId = 2;
+message InviteRequest{
+  string inviteId = 1;
+  string groupId = 2;
+  string senderId = 3;
+  string receiverId = 4;
+  int64 timestamp = 5;
 }
-message GroupInviteResponse {
+message InviteResponse{
+  string inviteId = 1;
+  string groupId = 2;
+  string senderId = 3;
+  string receiverId = 4;
+  InviteResponseStatus status = 5;
+}
+message InviteListResponse {
+  repeated ProtoInvite invites = 1;
+}
+message ProtoInvite {
+  string inviteId = 1;
+  string groupId = 2;
+  string senderId = 3;
+  string invitedUserId = 4;
+  int64 timestamp = 5;
+  InviteResponseStatus status = 6;
+}
+message GroupRequest {
   string groupId = 1;
-  string userId = 2;
-  bool accepted = 3;
+}
+message GameListResponse {
+  repeated string gameIds = 1;
 }
 
 // ========== משחק ==========
@@ -225,21 +259,29 @@ message TradeResult {
 }
 
 // ========== צ'אט ==========
-message Message {
+message GameChatMessage {
   string gameId = 1;
   string fromUserId = 2;
   bytes content = 3;
   int64 timestamp = 4;
+  string messageId = 5;
 }
-message ChatSubscribeRequest {
-  string gameId = 1;
-  string userId = 2;
+message GroupChatMessage {
+  string groupId = 1;
+  string fromUserId = 2;
+  bytes content = 3;
+  int64 timestamp = 4;
+  string messageId = 5;
 }
 message ACK {
   bool received = 1;
 }
 message GameSubscribeRequest {
   string gameId = 1;
+  string userId = 2;
+}
+message GroupSubscribeRequest {
+  string groupId = 1;
   string userId = 2;
 }
 message GameEvent {

@@ -1,29 +1,31 @@
-package Model.obj;
+package Model.OBJ;
 
 import java.time.Instant;
 import java.util.UUID;
 
-public class Message {
+/**
+ * בדיוק כמו GameMessage, רק שהשדה השני הוא groupId במקום gameId
+ */
+public class GroupMessage {
     private final UUID id;
-    private final UUID gameId;
+    private final UUID groupId;
     private final UUID senderId;
     private final byte[] content;
     private final Instant sentAt;
 
-    public Message(UUID id, UUID gameId, UUID senderId, byte[] content, Instant sentAt) {
-        this.id = id;
-        this.gameId = gameId;
+    public GroupMessage(UUID id, UUID groupId, UUID senderId, byte[] content, Instant sentAt) {
+        this.id       = id;
+        this.groupId  = groupId;
         this.senderId = senderId;
-        this.content = content;
-        this.sentAt = sentAt;
+        this.content  = content;
+        this.sentAt   = sentAt;
     }
-
 
     public UUID getId() {
         return id;
     }
-    public UUID getGameId() {
-        return gameId;
+    public UUID getGroupId() {
+        return groupId;
     }
     public UUID getSenderId() {
         return senderId;

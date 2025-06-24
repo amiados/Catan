@@ -1,7 +1,7 @@
-package Model.dao;
+package Model.DAO;
 
-import Model.obj.Group;
-import Model.obj.User;
+import Model.OBJ.Group;
+import Model.OBJ.User;
 import Utils.DatabaseConnection;
 
 import java.io.IOException;

@@ -11,6 +11,7 @@ import javafx.scene.control.Button;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.AudioClip;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -18,7 +19,11 @@ import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.util.Objects;
+
 public class WelcomeScreen extends Application {
+
+    private AudioClip clickSound;
 
     private final AuthServiceClient authClient = new AuthServiceClient("localhost", 9090);
     @Override
@@ -27,6 +32,11 @@ public class WelcomeScreen extends Application {
         Text title = new Text("ברוכים הבאים למשחק קטאן");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         title.setFill(Color.DARKSLATEBLUE);
+
+        clickSound = new AudioClip(
+                Objects.requireNonNull(getClass().getResource("/Utils/mouse_click.mp3")).toExternalForm()
+        );
+        clickSound.setVolume(0.5);
 
         // לוגו המשחק (אם יש)
         ImageView logo = new ImageView(new Image("/Utils/catanLogo.png"));
@@ -46,6 +56,7 @@ public class WelcomeScreen extends Application {
         // אירועים עם מעבר
         loginBtn.setOnAction(e -> {
             try {
+                clickSound.play();
                 new LoginScreen(authClient).start(new Stage());
                 primaryStage.close();
             } catch (Exception ex) {
@@ -56,6 +67,7 @@ public class WelcomeScreen extends Application {
 
         registerBtn.setOnAction(e -> {
             try {
+                clickSound.play();
                 new RegisterScreen(authClient).start(new Stage());
                 primaryStage.close();
             } catch (Exception ex) {

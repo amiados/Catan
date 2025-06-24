@@ -11,17 +11,20 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
+import javafx.scene.media.AudioClip;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.effect.DropShadow;
 
+import java.util.Objects;
 import java.util.concurrent.Executors;
 
 public class LoginScreen extends Application {
 
     private final AuthServiceClient authClient;
+    private AudioClip clickSound;
 
     public LoginScreen(AuthServiceClient authClient) {
         this.authClient = authClient;
@@ -33,6 +36,11 @@ public class LoginScreen extends Application {
         root.setAlignment(Pos.CENTER);
         root.setPadding(new Insets(40));
         root.setStyle("-fx-background-color: linear-gradient(to bottom right, #f7e2c3, #d3b18d);");
+
+        clickSound = new AudioClip(
+                Objects.requireNonNull(getClass().getResource("/Utils/mouse_click.mp3")).toExternalForm()
+        );
+        clickSound.setVolume(0.5);
 
         Label title = new Label("Login to Catan");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
@@ -52,6 +60,7 @@ public class LoginScreen extends Application {
         styleButton(loginBtn);
 
         loginBtn.setOnAction(e -> {
+            clickSound.play();
             String email = emailField.getText();
             String password = passwordField.getText();
 
@@ -92,6 +101,7 @@ public class LoginScreen extends Application {
         Hyperlink switchToRegister = new Hyperlink("Don't have an account? Register here");
         switchToRegister.setOnAction(e -> {
             try {
+                clickSound.play();
                 new RegisterScreen(authClient).start(new Stage());
                 primaryStage.close();
             } catch (Exception ex) {
