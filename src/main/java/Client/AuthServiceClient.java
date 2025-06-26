@@ -1,7 +1,10 @@
 package Client;
 
+import Utils.ColorMapper;
+import catan.Catan;
 import catan.CatanServiceGrpc;
 import catan.Catan.*;
+import catan.PieceColor;
 import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -141,6 +144,13 @@ public class AuthServiceClient {
         return stub.leaveGame(buildGameAction(gameId, userId));
     }
 
+    public ListenableFuture<GameResponse> updateColor(String playerId, PieceColor pieceColor) {
+        Catan.UpdateColorRequest request = UpdateColorRequest.newBuilder()
+                .setPlayerId(playerId)
+                .setColor(Catan.Color.valueOf(pieceColor.name()))
+                .build();
+        return stub.updatePlayerColor(request);
+    }
     private GameActionRequest buildGameAction(String gameId, String userId) {
         return GameActionRequest.newBuilder()
                 .setGameId(gameId)

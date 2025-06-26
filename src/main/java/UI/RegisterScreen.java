@@ -25,6 +25,7 @@ public class RegisterScreen extends Application {
 
     private final AuthServiceClient authClient;
     private AudioClip clickSound;
+    private boolean isRegistering = false;
 
     public RegisterScreen(AuthServiceClient authClient) {
         this.authClient = authClient;
@@ -66,48 +67,72 @@ public class RegisterScreen extends Application {
         errorLabel.setWrapText(true);
         errorLabel.setMaxWidth(300);
 
+        ProgressIndicator loadingSpinner = new ProgressIndicator();
+        loadingSpinner.setVisible(false);
+        loadingSpinner.setPrefSize(30, 30);
+
         Button registerBtn = new Button("Register");
         styleButton(registerBtn);
         registerBtn.setOnAction(e -> {
+            if (isRegistering) return;
+            isRegistering = true;
             clickSound.play();
+
+            registerBtn.setText("Registering...");
+            registerBtn.setDisable(true);
+            loadingSpinner.setVisible(true);
+            errorLabel.setText("");
+
             String username = usernameField.getText().trim();
             String email = emailField.getText().trim();
             String password = passwordField.getText();
             String confirmPassword = confirmPasswordField.getText();
 
+            Runnable reset = () -> {
+                isRegistering = false;
+                registerBtn.setDisable(false);
+                registerBtn.setText("Register");
+                loadingSpinner.setVisible(false);
+            };
+
             if (!isValidEmail(email)) {
                 showError(errorLabel, "Invalid email format");
+                reset.run();
             } else if (!isValidPassword(password)) {
                 showError(errorLabel, "Password must be at least 8 characters,\nincluding upper, lower, digit, and symbol");
+                reset.run();
             } else if (!password.equals(confirmPassword)) {
                 showError(errorLabel, "Passwords do not match");
+                reset.run();
             } else if (!isValidUsername(username)) {
                 showError(errorLabel, "Username must be at least 6 characters");
+                reset.run();
             } else {
                 ListenableFuture<Catan.ConnectionResponse> future = authClient.register(username, email, password);
                 future.addListener(() -> {
                     try {
                         Catan.ConnectionResponse response = future.get();
-                        if (response.getSuccess()) {
-                            Platform.runLater(() -> {
+                        Platform.runLater(() -> {
+                            if (response.getSuccess()) {
                                 try {
                                     new OTPVerificationScreen(authClient, email, true).start(new Stage());
                                     primaryStage.close();
                                 } catch (Exception ex) {
                                     ex.printStackTrace();
                                     showError(errorLabel, "Failed to load OTP screen");
+                                    reset.run();
                                 }
-                            });
-                        } else {
-                            Platform.runLater(() ->
-                                    showError(errorLabel, String.join("\n", response.getErrorsList()))
-                            );
-                        }
+                            } else {
+                                showError(errorLabel, String.join("\n", response.getErrorsList()));
+                                reset.run();
+                            }
+                        });
                     } catch (Exception ex) {
-                        Platform.runLater(() ->
-                                showError(errorLabel, "Server error during registration")
-                        );
                         ex.printStackTrace();
+                        Platform.runLater(() -> {
+                            showError(errorLabel, "Server error during registration");
+                            reset.run();
+                        });
                     }
                 }, Executors.newSingleThreadExecutor());
             }
@@ -124,7 +149,17 @@ public class RegisterScreen extends Application {
             }
         });
 
-        root.getChildren().addAll(title, usernameField, emailField, passwordField, confirmPasswordField, registerBtn, errorLabel, loginLink);
+        root.getChildren().addAll(
+                title,
+                usernameField,
+                emailField,
+                passwordField,
+                confirmPasswordField,
+                registerBtn,
+                loadingSpinner,
+                errorLabel,
+                loginLink
+        );
 
         Scene scene = new Scene(root, 500, 520);
         scene.setOnKeyPressed(e -> {

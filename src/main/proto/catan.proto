@@ -9,6 +9,15 @@ enum InviteResponseStatus {
   EXPIRED = 3;
 }
 
+enum Color {
+  RED = 0;
+  BLUE = 1;
+  WHITE = 2;
+  ORANGE = 3;
+  BLACK = 4;
+  GREEN = 5;
+}
+
 service CatanService {
   // הרשמה / כניסה
   rpc register(RegisterRequest) returns (ConnectionResponse);
@@ -27,6 +36,7 @@ service CatanService {
   rpc listGroupGames(GroupRequest) returns (GameListResponse);
 
   // ניהול משחק
+  rpc createGame(GameActionRequest) returns (GameResponse);
   rpc startGame(GameActionRequest) returns (GameResponse);
   rpc endGame(GameActionRequest) returns (GameResponse);
   rpc leaveGame(GameActionRequest) returns (GameResponse);
@@ -153,6 +163,8 @@ message GameListResponse {
 message GameActionRequest {
   string gameId = 1;
   string userId = 2;
+  string groupId = 3;
+  int64 timestamp = 4;
 }
 message GameResponse {
   bool success = 1;
@@ -227,7 +239,8 @@ message PlayerInfoResponse {
 // ========== צבע שחקן ==========
 message UpdateColorRequest {
   string playerId = 1;
-  string color = 2;
+  Color color = 2;
+  string gameId = 3;
 }
 message GamePlayersResponse {
   repeated PlayerProto players = 1;
@@ -265,6 +278,7 @@ message GameChatMessage {
   bytes content = 3;
   int64 timestamp = 4;
   string messageId = 5;
+  string fromUsername = 6;
 }
 message GroupChatMessage {
   string groupId = 1;
@@ -272,6 +286,7 @@ message GroupChatMessage {
   bytes content = 3;
   int64 timestamp = 4;
   string messageId = 5;
+  string fromUsername = 6;
 }
 message ACK {
   bool received = 1;

@@ -71,6 +71,20 @@ public class UserDAO {
         }
     }
 
+    public String getUsernameById(UUID userId) throws SQLException {
+        String sql = "SELECT Username FROM Users WHERE Id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("Username");
+                } else {
+                    throw new SQLException("User not found");
+                }
+            }
+        }
+    }
     /**
      * מעדכן את זמן ההתחברות האחרון.
      * @param user אובייקט המשתמש לעדכון.

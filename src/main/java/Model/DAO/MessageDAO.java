@@ -22,8 +22,8 @@ public class MessageDAO {
      */
     public boolean saveGameMessage(GameMessage message) throws SQLException {
         String sql = """
-            INSERT INTO GameMessages
-                (MessageId, GameId, SenderId, Content, SentAt)
+            INSERT INTO game_chat_messages
+                (id, game_id, sender_id, content, timestamp)
             VALUES (?, ?, ?, ?, ?)
             """;
         try (Connection conn = DatabaseConnection.getConnection();
@@ -42,9 +42,9 @@ public class MessageDAO {
      */
     public ArrayList<GameMessage> getGameMessages(UUID gameId, int limit, int offset) throws SQLException {
         String sql = """
-            SELECT * FROM GameMessages
-             WHERE GameId = ?
-             ORDER BY SentAt DESC, MessageId
+            SELECT * FROM game_chat_messages
+             WHERE game_id = ?
+             ORDER BY timestamp DESC, id
              OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
             """;
         try (Connection conn = DatabaseConnection.getConnection();
@@ -63,12 +63,13 @@ public class MessageDAO {
     }
 
     private GameMessage mapRowToGameMessage(ResultSet rs) throws SQLException {
-        UUID messageId = UUID.fromString(rs.getString("MessageId"));
-        UUID gameId    = UUID.fromString(rs.getString("GameId"));
-        UUID senderId  = UUID.fromString(rs.getString("SenderId"));
-        byte[] content = rs.getBytes("Content");
-        Instant sentAt = rs.getTimestamp("SentAt").toInstant();
-        return new GameMessage(messageId, gameId, senderId, content, sentAt);
+        return new GameMessage(
+                UUID.fromString(rs.getString("id")),
+                UUID.fromString(rs.getString("game_id")),
+                UUID.fromString(rs.getString("sender_id")),
+                rs.getBytes("content"),
+                rs.getTimestamp("timestamp").toInstant()
+        );
     }
 
     // ================================
@@ -80,8 +81,8 @@ public class MessageDAO {
      */
     public boolean saveGroupMessage(GroupMessage message) throws SQLException {
         String sql = """
-            INSERT INTO GroupMessages
-                (MessageId, GroupId, SenderId, Content, SentAt)
+            INSERT INTO group_chat_messages
+                (id, group_id, sender_id, content, timestamp)
             VALUES (?, ?, ?, ?, ?)
             """;
         try (Connection conn = DatabaseConnection.getConnection();
@@ -100,9 +101,9 @@ public class MessageDAO {
      */
     public ArrayList<GroupMessage> getGroupMessages(UUID groupId, int limit, int offset) throws SQLException {
         String sql = """
-            SELECT * FROM GroupMessages
-             WHERE GroupId = ?
-             ORDER BY SentAt DESC, MessageId
+            SELECT * FROM group_chat_messages
+             WHERE group_id = ?
+             ORDER BY timestamp DESC, id
              OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
             """;
         try (Connection conn = DatabaseConnection.getConnection();
@@ -121,11 +122,12 @@ public class MessageDAO {
     }
 
     private GroupMessage mapRowToGroupMessage(ResultSet rs) throws SQLException {
-        UUID messageId = UUID.fromString(rs.getString("MessageId"));
-        UUID groupId   = UUID.fromString(rs.getString("GroupId"));
-        UUID senderId  = UUID.fromString(rs.getString("SenderId"));
-        byte[] content = rs.getBytes("Content");
-        Instant sentAt = rs.getTimestamp("SentAt").toInstant();
-        return new GroupMessage(messageId, groupId, senderId, content, sentAt);
+        return new GroupMessage(
+                UUID.fromString(rs.getString("id")),
+                UUID.fromString(rs.getString("group_id")),
+                UUID.fromString(rs.getString("sender_id")),
+                rs.getBytes("content"),
+                rs.getTimestamp("timestamp").toInstant()
+        );
     }
 }

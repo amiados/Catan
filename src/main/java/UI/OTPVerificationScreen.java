@@ -36,10 +36,15 @@ public class OTPVerificationScreen extends Application {
     private Button verifyBtn;
     private Button resendBtn;
     private Timeline countdown;
+    private ProgressIndicator loadingSpinner;
+    private ProgressIndicator resendSpinner;
 
     private Stage currentStage;
 
     private AudioClip clickSound;
+
+    private boolean isVerifyingOtp = false;
+    private boolean isResendingOtp = false;
 
     public OTPVerificationScreen(AuthServiceClient authClient, String email, boolean isRegisterMode) {
         this.authClient = authClient;
@@ -69,6 +74,14 @@ public class OTPVerificationScreen extends Application {
         otpField.setMaxWidth(200);
         otpField.setFont(Font.font("Arial", 16));
 
+        loadingSpinner = new ProgressIndicator();
+        loadingSpinner.setVisible(false);
+        loadingSpinner.setPrefSize(30, 30);
+
+        resendSpinner = new ProgressIndicator();
+        resendSpinner.setVisible(false);
+        resendSpinner.setPrefSize(25, 25);
+
         verifyBtn = new Button("Verify OTP");
         styleButton(verifyBtn);
         verifyBtn.setOnAction(e -> {
@@ -88,7 +101,16 @@ public class OTPVerificationScreen extends Application {
         timerLabel = new Label();
         timerLabel.setFont(Font.font("Arial", 14));
 
-        root.getChildren().addAll(title, otpField, verifyBtn, resendBtn, messageLabel, timerLabel);
+        root.getChildren().addAll(
+                title,
+                otpField,
+                verifyBtn,
+                loadingSpinner,
+                resendBtn,
+                resendSpinner,
+                messageLabel,
+                timerLabel
+        );
 
         Scene scene = new Scene(root, 400, 350);
         stage.setTitle("OTP Verification");
@@ -99,12 +121,20 @@ public class OTPVerificationScreen extends Application {
     }
 
     private void verifyOtp() {
+        if (isVerifyingOtp) return;
+        isVerifyingOtp = true;
+
         String otp = otpField.getText().trim();
         if (otp.isEmpty()) {
             showMessage("Please enter OTP", Color.RED);
             animateShake(otpField);
+            isVerifyingOtp = false;
             return;
         }
+
+        verifyBtn.setText("Verifying...");
+        verifyBtn.setDisable(true);
+        loadingSpinner.setVisible(true);
 
         Executors.newSingleThreadExecutor().submit(() -> {
             try {
@@ -122,6 +152,7 @@ public class OTPVerificationScreen extends Application {
                         } catch (Exception e) {
                             e.printStackTrace();
                             showMessage("Failed to load Home Page", Color.RED);
+                            resetVerifyButton();
                         }
                     });
                 } else {
@@ -133,23 +164,47 @@ public class OTPVerificationScreen extends Application {
                             verifyBtn.setDisable(true);
                             showMessage("Too many failed attempts. Please try again later.", Color.RED);
                         }
+                        resetVerifyButton();
                     });
                 }
             } catch (Exception ex) {
-                Platform.runLater(() -> showMessage("Server error during OTP verification", Color.RED));
                 ex.printStackTrace();
+                Platform.runLater(() -> {
+                    showMessage("Server error during OTP verification", Color.RED);
+                    resetVerifyButton();
+                });
             }
         });
     }
 
+    private void resetVerifyButton() {
+        isVerifyingOtp = false;
+        verifyBtn.setDisable(false);
+        verifyBtn.setText("Verify OTP");
+        loadingSpinner.setVisible(false);
+    }
+    private void resetResendButton() {
+        isResendingOtp = false;
+        resendBtn.setDisable(false);
+        resendBtn.setText("Send OTP Again");
+        resendSpinner.setVisible(false);
+    }
+
     private void resendOtp() {
+        if (isResendingOtp) return;
         if (resendAttempts >= 3) {
             showMessage("Maximum resend attempts reached. Wait 5 minutes.", Color.RED);
             resendBtn.setDisable(true);
             return;
         }
 
+        isResendingOtp = true;
         resendAttempts++;
+
+        resendBtn.setText("Sending...");
+        resendBtn.setDisable(true);
+        resendSpinner.setVisible(true);
+
         sendOtp();
     }
 
@@ -166,10 +221,14 @@ public class OTPVerificationScreen extends Application {
                     } else {
                         showMessage("Failed to send OTP: " + response.getMessage(), Color.RED);
                     }
+                    resetResendButton();
                 });
             } catch (Exception e) {
-                Platform.runLater(() -> showMessage("Server error when sending OTP", Color.RED));
                 e.printStackTrace();
+                Platform.runLater(() -> {
+                    showMessage("Server error when sending OTP", Color.RED);
+                    resetResendButton();
+                });
             }
         });
     }

@@ -4,6 +4,7 @@ import Model.OBJ.Game;
 import Utils.DatabaseConnection;
 
 import java.sql.*;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +33,19 @@ public class GameDAO {
         }
     }
 
+    public boolean startGame(UUID gameId, Instant startedAt) throws SQLException {
+        String sql = "UPDATE Games SET StartedAt = ? WHERE GameId = ? AND StartedAt IS NULL";
+
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setTimestamp(1, Timestamp.from(startedAt));
+            stmt.setObject(2, gameId);
+
+            int updatedRows = stmt.executeUpdate();
+            return updatedRows > 0;
+        }
+    }
+
     public Game getGameById(UUID gameId) throws SQLException{
         String sql = "SELECT * FROM Games WHERE GameId = ?";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -46,12 +60,12 @@ public class GameDAO {
         }
     }
 
-    public List<Game> getGamesByUserId(UUID userId) throws SQLException {
+    public List<Game> getGamesByUserId(UUID playerId) throws SQLException {
         String sql = "SELECT * FROM Games WHERE HostId = ?";
         List<Game> games = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setObject(1, userId);
+            ps.setObject(1, playerId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     games.add(parseGame(rs));

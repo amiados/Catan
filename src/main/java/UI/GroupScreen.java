@@ -19,9 +19,9 @@ import javafx.scene.text.*;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class GroupScreen extends Application {
     private final Catan.GroupInfo groupInfo;
@@ -59,19 +59,38 @@ public class GroupScreen extends Application {
         content.setMaxWidth(760);
         content.setStyle("-fx-background-color: rgba(255,248,220,0.85); -fx-background-radius: 12;");
 
+        Button backBtn = styledButton("⬅ Back");
+        backBtn.setOnAction(e -> {
+            try {
+                new HomePage(userId, authClient).start(new Stage());
+                stage.close();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+
         // 📛 כותרת
         Label title = new Label("Group: " + groupName);
         title.setFont(Font.font("Papyrus", FontWeight.BOLD, 28));
         title.setTextFill(Color.DARKRED);
         title.setEffect(new DropShadow(5, Color.GOLD));
 
+        HBox header = new HBox(10, backBtn, title);
+        header.setAlignment(Pos.CENTER_RIGHT);
+
         Label gamesLabel = new Label("Games:");
         gamesLabel.setFont(Font.font("Verdana", FontWeight.BOLD, 18));
 
         Button newGameBtn = styledButton("➕ New Game");
         newGameBtn.setOnAction(e -> {
-            // TODO: יצירת משחק חדש ב־backend
-            fetchAndRenderGames();
+            try {
+                GameLobbyWindow lobby = new GameLobbyWindow(userId, groupId, authClient);
+                Stage lobbyStage = new Stage();
+                lobby.start(lobbyStage);
+                stage.close();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
         });
 
         gamesContainer = new VBox(10);
@@ -91,7 +110,6 @@ public class GroupScreen extends Application {
         chatContainer.setPrefHeight(200);
         chatContainer.setPadding(new Insets(5));
         chatContainer.setStyle("-fx-background-color: rgba(255,255,255,0.6); -fx-background-radius: 8;");
-
         TextField messageField = new TextField();
         messageField.setPromptText("Type a message...");
         messageField.setOnKeyPressed(evt -> {
@@ -111,7 +129,7 @@ public class GroupScreen extends Application {
         chatInput.setAlignment(Pos.CENTER);
 
         content.getChildren().addAll(
-                title,
+                header,
                 gamesHeader,
                 gamesContainer,
                 chatLabel,
@@ -134,6 +152,7 @@ public class GroupScreen extends Application {
         // initial load
         fetchAndRenderGames();
         fetchAndRenderChat();
+
     }
 
     private void fetchAndRenderGames() {
@@ -165,10 +184,32 @@ public class GroupScreen extends Application {
             @Override
             public void onNext(Catan.GroupChatMessage groupChatMessage) {
                 Platform.runLater(() -> {
-                    String sender = groupChatMessage.getFromUserId();
-                    String text = new String(groupChatMessage.getContent().toByteArray());
-                    Label label = new Label(sender + ": " + text);
-                    chatContainer.getChildren().add(label);
+                    String senderId = groupChatMessage.getFromUserId();
+                    String text = new String(groupChatMessage.getContent().toByteArray(), StandardCharsets.UTF_8);
+
+                    long timestamp = groupChatMessage.getTimestamp();
+                    String time = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")
+                            .withZone(java.time.ZoneId.systemDefault())
+                            .format(java.time.Instant.ofEpochMilli(timestamp));
+
+                    Label label;
+                    HBox container = new HBox();
+
+                    if (senderId.equals(userId)) {
+                        // הודעה שלי
+                        label = new Label("You [" + time + "]: " + text);
+                        label.setStyle("-fx-background-color: #bbe8a4; -fx-padding: 6 10; -fx-background-radius: 10;");
+                        container.setAlignment(Pos.CENTER_RIGHT);
+                    } else {
+                        // הודעה מאחר
+                        String sender = groupChatMessage.getFromUsername();
+                        label = new Label(sender + " [" + time + "]: " + text);
+                        label.setStyle("-fx-background-color: #f0d0d0; -fx-padding: 6 10; -fx-background-radius: 10;");
+                        container.setAlignment(Pos.CENTER_LEFT);
+                    }
+
+                    container.getChildren().add(label);
+                    chatContainer.getChildren().add(container);
                 });
             }
 
