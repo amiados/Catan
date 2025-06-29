@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -692,8 +693,18 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
 
             // 4. Build the response listing just the game IDs
             Catan.GameListResponse.Builder respond = Catan.GameListResponse.newBuilder();
+
             for (Game game : games) {
-                respond.addGameIds(game.getGameId().toString());
+                Catan.GameSummary summary = Catan.GameSummary.newBuilder()
+                        .setGameId(game.getGameId().toString())
+                        .setGroupId(game.getGroupId().toString())
+                        .setCreatorId(game.getHostId().toString())
+                        .setStartTime(game.getStartedAt() != null ? game.getStartedAt().toString() : "")
+                        .setEndTime(game.getEndedAt() != null ? game.getEndedAt().toString() : "")
+                        .setStatus(mapStatusToProto(game.getStatus()))
+                        .build();
+
+                respond.addGames(summary);
             }
 
             // 5. Send back and complete
@@ -704,6 +715,65 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                     .withDescription("DB error: " + e.getMessage())
                     .asRuntimeException()
             );
+        }
+    }
+
+    @Override
+    public void getGroupInfo(Catan.GroupRequest request, StreamObserver<Catan.GroupInfo> responseObserver) {
+        UUID groupId;
+
+        try {
+            groupId = UUID.fromString(request.getGroupId());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid groupId: " + e.getMessage())
+                    .asRuntimeException());
+            return;
+        }
+
+        try {
+            Group group = groupDAO.getGroupById(groupId);
+            if (group == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Group not found: " + groupId)
+                        .asRuntimeException());
+                return;
+            }
+
+            User creator = userDAO.getUserById(group.getCreatorId());
+            if (creator == null) {
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("Creator not found for group: " + groupId)
+                        .asRuntimeException());
+                return;
+            }
+
+            Catan.GroupInfo info = Catan.GroupInfo.newBuilder()
+                    .setGroupId(groupId.toString())
+                    .setGroupName(group.getGroupName())
+                    .setCreatorUsername(creator.getUsername())
+                    .build();
+
+            responseObserver.onNext(info);
+            responseObserver.onCompleted();
+
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Database error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
+    private Catan.GameStatus mapStatusToProto(GameStatus status) {
+        switch (status) {
+            case WAITING:
+                return Catan.GameStatus.WAITING;
+            case ACTIVE:
+                return Catan.GameStatus.ACTIVE;
+            case ENDED:
+                return Catan.GameStatus.ENDED;
+            default:
+                throw new IllegalArgumentException("Unknown GameStatus: " + status);
         }
     }
 
@@ -739,21 +809,12 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                 return;
             }
 
-            List<Game> gameList = gameDAO.getGamesByUserId(userId);
-
-            boolean isInGame = gameList.contains(game);
-            if (!isInGame) {
-                responseObserver.onError(Status.PERMISSION_DENIED
-                        .withDescription("You are not a participant in this game")
-                        .asRuntimeException());
-                return;
-            }
-
             List<Player> players = playerDAO.getPlayersByGame(gameId);
-            Catan.GamePlayersResponse.Builder respond = Catan.GamePlayersResponse.newBuilder();
+            List<Catan.PlayerProto> protoList = new ArrayList<>();
             for (Player player : players) {
-                respond.addPlayers(Catan.PlayerProto.newBuilder()
+                protoList.add(Catan.PlayerProto.newBuilder()
                         .setPlayerId(player.getPlayerId().toString())
+                                .setUserId(player.getUser().getId().toString())
                         .setUsername(player.getUsername())
                         .setColor(player.getPieceColor().name())
                         .setIsTurn(player.isTurn())
@@ -761,7 +822,9 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                 );
             }
 
-            responseObserver.onNext(respond.build());
+            responseObserver.onNext(Catan.GamePlayersResponse.newBuilder()
+                    .addAllPlayers(protoList)
+                    .build());
             responseObserver.onCompleted();
 
         } catch (SQLException e) {
@@ -899,7 +962,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
         UUID gameId, senderId;
         try {
             gameId = UUID.fromString(request.getGameId());
-            senderId = UUID.fromString(request.getFromUserId());
+            senderId = UUID.fromString(request.getFromPlayerId());
         } catch (IllegalArgumentException ex) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Invalid UUID: " + ex.getMessage())
@@ -908,6 +971,13 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
         }
 
         try {
+            Player sender = playerDAO.getPlayerById(senderId);
+            if (sender == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Player not found")
+                        .asRuntimeException());
+                return;
+            }
             GameMessage msg = new GameMessage(
                     UUID.randomUUID(),
                     gameId,
@@ -925,9 +995,9 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
 
         ConcurrentMap<UUID, StreamObserver<Catan.GameChatMessage>> map = gameSubs.get(gameId);
         if (map != null) {
-            map.forEach((uid, obs) -> {
+            map.forEach((pid, obs) -> {
                 try {
-                    if (uid != senderId) {
+                    if (pid != senderId) {
                         obs.onNext(request);
                     }
                 } catch (Exception e) {
@@ -943,10 +1013,10 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
     @Override
     public void subscribeGameMessages(Catan.GameSubscribeRequest request,
                                       StreamObserver<Catan.GameChatMessage> responseObserver) {
-        UUID gameId, userId;
+        UUID gameId, playerId;
         try {
             gameId = UUID.fromString(request.getGameId());
-            userId = UUID.fromString(request.getUserId());
+            playerId = UUID.fromString(request.getPlayerId());
         } catch (IllegalArgumentException ex) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Invalid UUID: " + ex.getMessage())
@@ -955,8 +1025,18 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
         }
 
         try {
-            Game game = gameDAO.getGameById(gameId);
+            Player player = playerDAO.getPlayerById(playerId);
+            if (player == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Player not found: " + gameId)
+                        .asRuntimeException()
+                );
+                return;
+            }
 
+            UUID userId = player.getUser().getId();
+
+            Game game = gameDAO.getGameById(gameId);
             if (game == null) {
                 responseObserver.onError(Status.NOT_FOUND
                         .withDescription("Game not found: " + gameId)
@@ -1001,19 +1081,20 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
             return;
         }
         try {
+
+            User user = userDAO.getUserById(creatorId);
+            if (user == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("User not found")
+                        .asRuntimeException());
+                return;
+            }
+
             // ודא שהקבוצה קיימת
             Group group = groupDAO.getGroupById(groupId);
             if (group == null) {
                 responseObserver.onError(Status.NOT_FOUND
                         .withDescription("Group not found")
-                        .asRuntimeException());
-                return;
-            }
-
-            Player creator = playerDAO.getPlayerById(creatorId);
-            if (creator == null) {
-                responseObserver.onError(Status.NOT_FOUND
-                        .withDescription("Player not found")
                         .asRuntimeException());
                 return;
             }
@@ -1024,6 +1105,8 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                         .asRuntimeException());
                 return;
             }
+
+
 
             // צור את המשחק
             Game game = new Game(gameId, groupId, timeStamp, null, null, creatorId);
@@ -1039,6 +1122,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
             }
 
             // הוסף את יוצר המשחק כשחקן
+            Player creator = new Player(UUID.randomUUID(), user, PieceColor.RED);
             playerDAO.addPlayerToGame(creator, gameId);
 
             // שלח תגובה
@@ -1116,10 +1200,10 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
             if (started) {
                 lobbyEventManager.broadcast(gameId,
                         Catan.GameEvent.newBuilder()
-                            .setType("START")
-                            .setDescription("Game started")
-                            .setTimestamp(startedAt.toEpochMilli())
-                            .build());
+                                .setType("GAME_STARTED")                            .setDescription("Game started")
+                                .setDescription("Game started by " + user.getUsername())
+                                .setTimestamp(startedAt.toEpochMilli())
+                                .build());
 
                 responseObserver.onNext(Catan.GameResponse.newBuilder()
                         .setSuccess(true)
@@ -1155,6 +1239,43 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
             return;
         }
 
+        try {
+            Player player = playerDAO.getPlayerByUserIdAndGameId(userId, gameId);
+            if (player == null) {
+                responseObserver.onNext(Catan.GameResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Player not found in game")
+                        .setGameId(gameId.toString())
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            boolean removed = playerDAO.removePlayer(player.getPlayerId());
+            if (!removed) {
+                responseObserver.onNext(Catan.GameResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Failed to remove player from game")
+                        .setGameId(gameId.toString())
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            // החזר הצלחה
+            responseObserver.onNext(Catan.GameResponse.newBuilder()
+                    .setSuccess(true)
+                    .setMessage("Left game successfully")
+                    .setGameId(gameId.toString())
+                    .build());
+            responseObserver.onCompleted();
+
+        } catch (SQLException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Database error: " + e.getMessage())
+                    .asRuntimeException());
+        }
+
 
     }
 
@@ -1175,6 +1296,7 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                     .asRuntimeException());
             return;
         }
+
         PieceColor pieceColor;
         try {
             pieceColor = ColorMapper.fromProtoColor(request.getColor());
@@ -1184,8 +1306,8 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                     .asRuntimeException());
             return;
         }
-        try {
 
+        try {
             Player player = playerDAO.getPlayerById(playerId);
             if (player == null) {
                 responseObserver.onError(Status.NOT_FOUND
@@ -1202,35 +1324,38 @@ public class CatanServiceImpl extends CatanServiceGrpc.CatanServiceImplBase {
                 return;
             }
 
-            if (gameDAO.getGamesByUserId(playerId).contains(gameId)) {
-                boolean updated = playerDAO.updatePlayerColor(playerId, pieceColor);
-
-                if (updated) {
-                    lobbyEventManager.broadcast(gameId,
-                            Catan.GameEvent.newBuilder()
-                                    .setType("COLOR_CHANGE")
-                                    .setDescription("Player " + playerId + " selected " + pieceColor.name())
-                                    .setTimestamp(System.currentTimeMillis())
-                                    .build());
-                    responseObserver.onNext(Catan.GameResponse.newBuilder()
-                            .setSuccess(true)
-                            .setMessage("Color updated successfully")
-                            .build());
-                } else {
+            List<Player> playersInGame = playerDAO.getPlayersByGame(gameId);
+            for (Player p : playersInGame) {
+                if (p.getPieceColor() == pieceColor && !p.getId().equals(playerId)) {
                     responseObserver.onNext(Catan.GameResponse.newBuilder()
                             .setSuccess(false)
-                            .setMessage("Failed to update color")
+                            .setMessage("Color already taken")
                             .build());
+                    responseObserver.onCompleted();
+                    return;
                 }
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(Status.NOT_FOUND
-                        .withDescription("Player not member in game")
-                        .asRuntimeException());
-                return;
             }
 
-        }  catch (SQLException e) {
+            boolean updated = playerDAO.updatePlayerColor(playerId, pieceColor);
+            if (updated) {
+                lobbyEventManager.broadcast(gameId,
+                        Catan.GameEvent.newBuilder()
+                                .setType("COLOR_CHANGE")
+                                .setDescription("Player " + playerId + " selected " + pieceColor.name())
+                                .setTimestamp(System.currentTimeMillis())
+                                .build());
+                responseObserver.onNext(Catan.GameResponse.newBuilder()
+                        .setSuccess(true)
+                        .setMessage("Color updated successfully")
+                        .build());
+            } else {
+                responseObserver.onNext(Catan.GameResponse.newBuilder()
+                        .setSuccess(false)
+                        .setMessage("Failed to update color")
+                        .build());
+            }
+            responseObserver.onCompleted();
+        } catch (SQLException e) {
             responseObserver.onError(Status.INTERNAL
                     .withDescription("DB error: " + e.getMessage())
                     .asRuntimeException());

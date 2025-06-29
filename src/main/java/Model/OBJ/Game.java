@@ -45,4 +45,13 @@ public class Game {
     public void setEndedAt(Instant endedAt) {
         this.endedAt = endedAt;
     }
+
+    public GameStatus getStatus() {
+        if (startedAt == null)
+            return GameStatus.WAITING;
+        else if (endedAt == null)
+            return GameStatus.ACTIVE;
+        else
+            return GameStatus.ENDED;
+    }
 }

@@ -60,12 +60,12 @@ public class GameDAO {
         }
     }
 
-    public List<Game> getGamesByUserId(UUID playerId) throws SQLException {
+    public List<Game> getGamesByUserId(UUID userId) throws SQLException {
         String sql = "SELECT * FROM Games WHERE HostId = ?";
         List<Game> games = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setObject(1, playerId);
+            ps.setObject(1, userId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     games.add(parseGame(rs));

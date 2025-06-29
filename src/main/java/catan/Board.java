@@ -40,6 +40,8 @@ public class Board extends Application {
     // מעקב אחר האלמנט שנבחר (catan.Vertex או catan.Edge)
     private Circle selectedVertex = null;
     private Line selectedEdge = null;
+
+
     @Override
     public void start(Stage stage) {
         root = new Pane();

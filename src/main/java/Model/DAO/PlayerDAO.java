@@ -6,12 +6,12 @@ import Utils.DatabaseConnection;
 import catan.PieceColor;
 
 import java.sql.*;
-import java.time.Instant;
 import java.util.*;
 
 public class PlayerDAO {
+    private final UserDAO userDAO = new UserDAO();
 
-    public boolean addPlayerToGame(Player player, UUID gameId) throws SQLException {
+    public void addPlayerToGame(Player player, UUID gameId) throws SQLException {
         String sql = """
             INSERT INTO Players
             (PlayerId, UserId, GameId, Color, BonusVictoryPoints, ArmySize, LongestRoadLength, HasLargestArmy, HasLongestRoad, IsTurn)
@@ -30,7 +30,7 @@ public class PlayerDAO {
             ps.setBoolean(8, player.hasLargestArmy());
             ps.setBoolean(9, player.hasLongestRoad());
             ps.setBoolean(10, player.isTurn());
-            return ps.executeUpdate() > 0;
+            ps.executeUpdate();
         }
     }
 
@@ -56,10 +56,9 @@ public class PlayerDAO {
 
     public Player getPlayerById(UUID playerId) throws SQLException {
         String sql = """
-            SELECT p.*, u.Username, u.Email, u.PasswordHash, u.LastLogin, u.FailedLogins, u.LockUntil
-            FROM Players p
-            JOIN Users u ON p.UserId = u.Id
-            WHERE p.PlayerId = ?
+            SELECT *
+            FROM Players
+            WHERE PlayerId = ?
         """;
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -92,6 +91,18 @@ public class PlayerDAO {
         }
 
         return players;
+    }
+
+    public Player getPlayerByUserIdAndGameId(UUID userId, UUID gameId) throws SQLException{
+        String sql = "SELECT * FROM Players WHERE UserId = ? AND GameId = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setObject(1, userId);
+            stmt.setObject(2, gameId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? mapPlayer(rs) : null;
+            }
+        }
     }
 
     public boolean updateVictoryStatus(Player player) throws SQLException {
@@ -128,16 +139,10 @@ public class PlayerDAO {
     private Player mapPlayer(ResultSet rs) throws SQLException {
         UUID playerId = UUID.fromString(rs.getString("PlayerId"));
         UUID userId = UUID.fromString(rs.getString("UserId"));
-        String username = rs.getString("Username");
-        String email = rs.getString("Email");
-        String passwordHash = rs.getString("PasswordHash");
-        Instant lastLogin = rs.getTimestamp("LastLogin") != null ? rs.getTimestamp("LastLogin").toInstant() : null;
-        int failedLogins = rs.getInt("FailedLogins");
-        Instant lockUntil = rs.getTimestamp("LockUntil") != null ? rs.getTimestamp("LockUntil").toInstant() : null;
         PieceColor color = PieceColor.valueOf(rs.getString("Color"));
         boolean isTurn = rs.getBoolean("IsTurn");
 
-        User user = new User(userId, username, email, passwordHash, lastLogin, failedLogins, lockUntil);
+        User user = userDAO.getUserById(userId);
         Player player = new Player(playerId, user, color);
         player.setTurn(isTurn);
         return player;

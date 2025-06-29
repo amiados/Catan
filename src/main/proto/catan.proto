@@ -18,6 +18,12 @@ enum Color {
   GREEN = 5;
 }
 
+enum GameStatus {
+  WAITING = 0;
+  ACTIVE = 1;
+  ENDED = 2;
+}
+
 service CatanService {
   // הרשמה / כניסה
   rpc register(RegisterRequest) returns (ConnectionResponse);
@@ -34,6 +40,7 @@ service CatanService {
   rpc respondToGroupInvitation(InviteResponse) returns (GroupResponse);
   rpc getUserInvites(UserRequest) returns (InviteListResponse);
   rpc listGroupGames(GroupRequest) returns (GameListResponse);
+  rpc getGroupInfo(GroupRequest) returns (GroupInfo);
 
   // ניהול משחק
   rpc createGame(GameActionRequest) returns (GameResponse);
@@ -156,7 +163,7 @@ message GroupRequest {
   string groupId = 1;
 }
 message GameListResponse {
-  repeated string gameIds = 1;
+  repeated GameSummary games = 1;
 }
 
 // ========== משחק ==========
@@ -171,11 +178,19 @@ message GameResponse {
   string message = 2;
   string gameId = 3;
 }
+message GameSummary {
+  string gameId = 1;
+  string groupId = 2;
+  string creatorId = 3;
+  string startTime = 4;
+  string endTime = 5;
+  GameStatus status = 6; // לדוגמה: "WAITING", "ACTIVE", "ENDED"
+}
 
 // ========== בנייה ==========
 message BuildRequest {
   string gameId = 1;
-  string userId = 2;
+  string playerId = 2;
   int32 x = 3;
   int32 y = 4;
 }
@@ -186,34 +201,34 @@ message MoveRobberRequest {
 }
 message StealRequest {
   string gameId = 1;
-  string fromUserId = 2;
-  string toUserId = 3;
+  string fromPlayerId = 2;
+  string toPlayerId = 3;
 }
 
 // ========== קלפי פיתוח ==========
 message BuyDevCardRequest {
   string gameId = 1;
-  string userId = 2;
+  string playerId = 2;
 }
 message PlayDevCardRequest {
   string gameId = 1;
-  string userId = 2;
+  string playerId = 2;
   string cardType = 3;
 }
 message MonopolyUseRequest {
   string gameId = 1;
-  string userId = 2;
+  string playerId = 2;
   string resourceType = 3;
 }
 message RoadBuildingRequest {
   string gameId = 1;
-  string userId = 2;
+  string playerId = 2;
   repeated BuildRequest roads = 3;
 }
 
 // ========== תור ==========
 message DiscardRequest {
-  string userId = 1;
+  string playerId = 1;
   string gameId = 2;
   repeated string discardedResources = 3;
 }
@@ -225,7 +240,7 @@ message DiceRollResponse {
 
 // ========== מידע ==========
 message PlayerInfoRequest {
-  string userId = 1;
+  string playerId = 1;
   string gameId = 2;
 }
 message PlayerInfoResponse {
@@ -250,20 +265,21 @@ message PlayerProto {
   string username = 2;
   string color = 3;
   bool isTurn = 4;
+  string userId = 5;
 }
 
 // ========== מסחר ==========
 message TradeRequest {
   string gameId = 1;
-  string fromUserId = 2;
-  string toUserId = 3;
+  string fromPlayerId = 2;
+  string toPlayerId = 3;
   map<string, int32> offer = 4;
   map<string, int32> request = 5;
 }
 message TradeResponse {
   string gameId = 1;
-  string fromUserId = 2;
-  string toUserId = 3;
+  string fromPlayerId = 2;
+  string toPlayerId = 3;
   bool accepted = 4;
 }
 message TradeResult {
@@ -274,7 +290,7 @@ message TradeResult {
 // ========== צ'אט ==========
 message GameChatMessage {
   string gameId = 1;
-  string fromUserId = 2;
+  string fromPlayerId = 2;
   bytes content = 3;
   int64 timestamp = 4;
   string messageId = 5;
@@ -293,7 +309,7 @@ message ACK {
 }
 message GameSubscribeRequest {
   string gameId = 1;
-  string userId = 2;
+  string playerId = 2;
 }
 message GroupSubscribeRequest {
   string groupId = 1;

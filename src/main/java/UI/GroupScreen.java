@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Objects;
 
 public class GroupScreen extends Application {
-    private final Catan.GroupInfo groupInfo;
     private final AuthServiceClient authClient;
     private final String userId;
     private final String groupId;
@@ -33,7 +32,6 @@ public class GroupScreen extends Application {
     private VBox chatContainer;
 
     public GroupScreen(Catan.GroupInfo groupInfo, AuthServiceClient authClient, String userId) {
-        this.groupInfo = groupInfo;
         this.authClient = authClient;
         this.userId = userId;
         this.groupId = groupInfo.getGroupId();
@@ -76,21 +74,25 @@ public class GroupScreen extends Application {
         title.setEffect(new DropShadow(5, Color.GOLD));
 
         HBox header = new HBox(10, backBtn, title);
-        header.setAlignment(Pos.CENTER_RIGHT);
+        header.setAlignment(Pos.CENTER_LEFT);
 
         Label gamesLabel = new Label("Games:");
         gamesLabel.setFont(Font.font("Verdana", FontWeight.BOLD, 18));
 
         Button newGameBtn = styledButton("➕ New Game");
         newGameBtn.setOnAction(e -> {
-            try {
-                GameLobbyWindow lobby = new GameLobbyWindow(userId, groupId, authClient);
-                Stage lobbyStage = new Stage();
-                lobby.start(lobbyStage);
-                stage.close();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+            String gameId = java.util.UUID.randomUUID().toString();
+
+            authClient.createGame(groupId, gameId, userId).addListener(() -> Platform.runLater(() -> {
+                try {
+                    GameLobbyWindow lobby = new GameLobbyWindow(userId, groupId, authClient, gameId);
+                    Stage lobbyStage = new Stage();
+                    lobby.start(lobbyStage);
+                    stage.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }), Runnable::run);
         });
 
         gamesContainer = new VBox(10);
@@ -160,14 +162,27 @@ public class GroupScreen extends Application {
                 .addListener(() -> {
                     try {
                         Catan.GameListResponse response = authClient.listGroupGames(groupId).get();
-                        List<String> gameIds = response.getGameIdsList(); // תוסיף מתודה שמחזירה את הפלט האחרון
+                        List<Catan.GameSummary> games = response.getGamesList(); // תוסיף מתודה שמחזירה את הפלט האחרון
 
                         Platform.runLater(() -> {
                             gamesContainer.getChildren().clear();
-                            for (String gid : gameIds) {
-                                Button btn = new Button("▶️ Game " + gid.substring(0, 6));
+                            for (Catan.GameSummary game : games) {
+                                String gid = game.getGameId();
+                                Catan.GameStatus status = game.getStatus(); // "WAITING", "ACTIVE", "ENDED"
+                                Button btn = new Button("▶️ Game " + gid.substring(0, 6) + " (" + status + ")");
+
                                 btn.setOnAction(e -> {
-                                    // TODO: open GameScreen for gid
+                                    switch (status) {
+                                        case WAITING:
+                                            joinGame(gid);
+                                            break;
+                                        case ACTIVE:
+                                        case ENDED:
+                                            showReplay(gid);
+                                            break;
+                                        default:
+                                            System.out.println("Unknown game status");
+                                    }
                                 });
                                 btn.setMaxWidth(Double.MAX_VALUE);
                                 gamesContainer.getChildren().add(btn);
@@ -180,7 +195,7 @@ public class GroupScreen extends Application {
     }
 
     private void fetchAndRenderChat() {
-        authClient.subscribeGroupMessages(groupId, userId, new StreamObserver<Catan.GroupChatMessage>() {
+        authClient.subscribeGroupMessages(groupId, userId, new StreamObserver<>() {
             @Override
             public void onNext(Catan.GroupChatMessage groupChatMessage) {
                 Platform.runLater(() -> {
@@ -232,13 +247,11 @@ public class GroupScreen extends Application {
         if (text.isBlank()) return;
 
         authClient.sendGroupMessage(groupId, userId, text.getBytes())
-                .addListener(() -> {
-                    Platform.runLater(() -> {
-                        Label me = new Label("You: " + text);
-                        me.setStyle("-fx-text-fill: green;");
-                        chatContainer.getChildren().add(me);
-                    });
-                }, Runnable::run);
+                .addListener(() -> Platform.runLater(() -> {
+                    Label me = new Label("You: " + text);
+                    me.setStyle("-fx-text-fill: green;");
+                    chatContainer.getChildren().add(me);
+                }), Runnable::run);
     }
 
     private Button styledButton(String text) {
@@ -248,5 +261,23 @@ public class GroupScreen extends Application {
         b.setOnMouseEntered(e -> b.setStyle("-fx-background-color: #704a30; -fx-text-fill: white; -fx-background-radius: 6;"));
         b.setOnMouseExited(e -> b.setStyle("-fx-background-color: #4d2c1d; -fx-text-fill: white; -fx-background-radius: 6;"));
         return b;
+    }
+
+    private void joinGame(String gameId) {
+        try {
+            GameLobbyWindow lobby = new GameLobbyWindow(userId, groupId, authClient, gameId);
+            lobby.start(new Stage());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void showReplay(String gameId) {
+//        try {
+//            GameReplayWindow replay = new GameReplayWindow(gameId, authClient);
+//            replay.start(new Stage());
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
     }
 }

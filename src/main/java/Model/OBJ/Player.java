@@ -7,7 +7,7 @@ import java.util.*;
 public class Player extends User {
     // Public data;
     private final UUID playerId;
-    private final UUID userId;
+    private final User user;
     private PieceColor pieceColor;
     private boolean isTurn;
 
@@ -43,7 +43,7 @@ public class Player extends User {
     public Player(UUID playerId, User user, PieceColor color) {
         super(user.getUsername(), user.getEmail(), user.getPasswordHash());
         this.playerId = playerId;
-        this.userId = user.getId();
+        this.user = user;
         this.pieceColor = color;
 
         for (ResourceType type : ResourceType.values()) {
@@ -80,8 +80,8 @@ public class Player extends User {
     public Set<Edge> getRoads() {
         return roads;
     }
-    public UUID getUserId() {
-        return userId;
+    public User getUser() {
+        return user;
     }
 
     // ===== Resource Management =====
